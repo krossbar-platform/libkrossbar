@@ -3,18 +3,17 @@
 #include <stddef.h>
 #include <stdbool.h>
 
-#include <mpack.h>
-
-#include "transport.h"
+struct mpack_reader_t;
 
 struct kb_message_s {
-    mpack_reader_t reader;
-    void (*destroy)(struct kb_message_s *message);
+    struct mpack_reader_t *reader;
+    int (*destroy)(struct kb_message_s *message);
 };
 
 typedef struct kb_message_s kb_message_t;
 
-typedef mpack_tag_t kb_message_tag_t;
+struct mpack_tag_t;
+typedef struct mpack_tag_t kb_message_tag_t;
 
 /**
  * @brief Initialize a new message with data buffer

@@ -21,6 +21,7 @@ add_library(${PROJECT_NAME}
     src/message.c
     src/peer.c
     src/shmem/transport_shm.c
+    src/shmem/message_shm.c
     src/shmem/message_writer_shm.c)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)

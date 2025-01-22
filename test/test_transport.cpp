@@ -18,7 +18,7 @@ TEST(Transport, TestShmemTransport) {
     auto message_writer = transport_shm_message_init(transport);
     auto shm_writer = (kb_message_writer_shm_t *)message_writer;
 
-    EXPECT_EQ(shm_writer->size, MESSAGE_SIZE);
+    EXPECT_EQ(shm_writer->header->size, MESSAGE_SIZE);
     message_write_bool(message_writer, true);
     message_write_u64(message_writer, 42);
     message_write_cstr(message_writer, "Hello world!");

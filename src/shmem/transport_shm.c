@@ -103,12 +103,13 @@ kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
     }
 
     kb_message_header_t *message_header = (kb_message_header_t*)memory_chunk;
+    message_header->size = self->message_size;
     message_header->next_message = NULL;
 
-    message_writer_shm_init(self, message_header, memory_chunk + sizeof(kb_message_header_t), self->message_size);
+    message_writer_shm_init(self, message_header, memory_chunk + sizeof(kb_message_header_t));
 }
 
-int transport_shm_message_message_send(kb_transport_t *transport, kb_message_writer_t *writer)
+int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *writer)
 {
     kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
     kb_message_writer_shm_t *shm_writer = (kb_message_writer_shm_t*)writer;
