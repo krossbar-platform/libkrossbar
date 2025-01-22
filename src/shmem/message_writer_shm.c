@@ -8,6 +8,7 @@ kb_message_writer_shm_t* message_writer_shm_init(kb_transport_shm_t *transport, 
     kb_message_writer_shm_t *writer = malloc(sizeof(kb_message_writer_shm_t));
     writer->transport = transport;
     writer->header = header;
+    writer->size = size;
 
     writer->writer.send = message_writer_shm_send;
 

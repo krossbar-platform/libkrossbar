@@ -30,7 +30,7 @@ size_t writer_message_size(kb_message_writer_t* writer)
     return mpack_writer_buffer_used(writer->writer);
 }
 
-int writer_message_send(kb_message_writer_t* writer)
+int message_send(kb_message_writer_t *writer)
 {
     return writer->send(writer);
 }
@@ -57,9 +57,11 @@ WRITER_FUNC_1(write_utf8_cstr, const char*);
 WRITER_FUNC_2(write_bin, const char*, uint32_t);
 
 WRITER_FUNC_1(start_map, uint32_t);
+WRITER_FUNC_0(finish_map);
 WRITER_FUNC_0(build_map);
 WRITER_FUNC_0(complete_map);
 
 WRITER_FUNC_1(start_array, uint32_t);
+WRITER_FUNC_0(finish_array);
 WRITER_FUNC_0(build_array);
 WRITER_FUNC_0(complete_array);

@@ -25,6 +25,8 @@ add_library(${PROJECT_NAME}
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 
+set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
+
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
 if(MESSAGE_BUFFER_SIZE)

@@ -29,7 +29,7 @@ size_t writer_message_size(kb_message_writer_t* writer);
  * @param writer The message writer
  * @return 0 on success, non-zero on failure
  */
-int writer_message_send(kb_message_writer_t* writer);
+int message_send(kb_message_writer_t *writer);
 
 /**
  * @brief Writes a nil/NULL value to the writer
@@ -43,6 +43,18 @@ void message_write_nil(kb_message_writer_t* writer);
  * @param value The boolean value to write
  */
 void message_write_bool(kb_message_writer_t* writer, bool value);
+
+void message_write_i8(kb_message_writer_t *writer, int8_t value);
+void message_write_i16(kb_message_writer_t *writer, int16_t value);
+void message_write_i32(kb_message_writer_t *writer, int32_t value);
+void message_write_i64(kb_message_writer_t *writer, int64_t value);
+void message_write_int(kb_message_writer_t *writer, int64_t value);
+void message_write_u8(kb_message_writer_t *writer, uint8_t value);
+void message_write_u16(kb_message_writer_t *writer, uint16_t value);
+void message_write_u32(kb_message_writer_t *writer, uint32_t value);
+void message_write_u64(kb_message_writer_t *writer, uint64_t value);
+void message_write_uint(kb_message_writer_t *writer, uint64_t value);
+void message_write_float(kb_message_writer_t *writer, float value);
 
 /**
  * @brief Writes a double-precision floating point value to the writer
@@ -115,6 +127,19 @@ void message_write_bin(kb_message_writer_t* writer, const char* data, uint32_t s
 void message_start_map(kb_message_writer_t* writer, uint32_t size);
 
 /**
+ * Finishes writing a map.
+ *
+ * This should be called only after a corresponding call to message_start_map()
+ * and after the map contents are written.
+ *
+ * In debug mode (or if MPACK_WRITE_TRACKING is not 0), this will track writes
+ * to ensure that the correct number of elements are written.
+ *
+ * @see message_start_map()
+ */
+void message_finish_map(kb_message_writer_t *writer);
+
+/**
  * Starts building a map.
  *
  * An even number of elements must follow, and message_complete_map() must be
@@ -182,6 +207,19 @@ void message_complete_map(kb_message_writer_t* writer);
 void message_start_array(kb_message_writer_t* writer, uint32_t size);
 
 /**
+ * Finishes writing an array.
+ *
+ * This should be called only after a corresponding call to mpack_start_array()
+ * and after the array contents are written.
+ *
+ * In debug mode (or if MPACK_WRITE_TRACKING is not 0), this will track writes
+ * to ensure that the correct number of elements are written.
+ *
+ * @see message_start_array()
+ */
+void message_finish_array(kb_message_writer_t *writer);
+
+/**
  * Starts building an array.
  *
  * Elements must follow, and message_complete_array() must be called when done. The
@@ -199,7 +237,7 @@ void message_start_array(kb_message_writer_t* writer, uint32_t size);
  * @see message_start_array() if you already know the size of the array
  * @see message_build_map() for implementation details
  */
-void message_build_map(kb_message_writer_t* writer);
+void message_build_array(kb_message_writer_t *writer);
 
 /**
  * Finishes writing an array.
@@ -214,22 +252,22 @@ void message_build_map(kb_message_writer_t* writer);
  */
 void message_complete_array(kb_message_writer_t* writer);
 
-#define message_write(writer, value) \
-    _Generic(((void)0, value),                      \
-              int8_t: message_write_i8,               \
-             int16_t: message_write_i16,              \
-             int32_t: message_write_i32,              \
-             int64_t: message_write_i64,              \
-             uint8_t: message_write_u8,               \
-            uint16_t: message_write_u16,              \
-            uint32_t: message_write_u32,              \
-            uint64_t: message_write_u64,              \
-                bool: message_write_bool,             \
-            MPACK_WRITE_GENERIC_FLOAT               \
-            MPACK_WRITE_GENERIC_DOUBLE              \
-              char *: message_write_cstr_or_nil,      \
-        const char *: message_write_cstr_or_nil       \
-    )(writer, value)
+#if !defined(__cplusplus)
+#define message_write(writer, value)       \
+    _Generic(((void)0, value),             \
+        int8_t: message_write_i8,          \
+        int16_t: message_write_i16,        \
+        int32_t: message_write_i32,        \
+        int64_t: message_write_i64,        \
+        uint8_t: message_write_u8,         \
+        uint16_t: message_write_u16,       \
+        uint32_t: message_write_u32,       \
+        uint64_t: message_write_u64,       \
+        bool: message_write_bool,          \
+        float: message_write_float,        \
+        double: message_write_double,      \
+        char *: message_write_cstr_or_nil, \
+        const char *: message_write_cstr_or_nil)(writer, value)
 
 /**
  * @def message_write_kv(writer, key, value)
@@ -251,3 +289,4 @@ void message_complete_array(kb_message_writer_t* writer);
     message_write_cstr(writer, key);                  \
     message_write(writer, value);                     \
 } while (0)
+#endif
