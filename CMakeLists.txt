@@ -1,0 +1,57 @@
+cmake_minimum_required(VERSION 3.5)
+
+include(MPack.cmake)
+
+# Set the project name
+project(krossbar)
+
+# Find jemalloc package
+find_package(PkgConfig REQUIRED)
+
+set(THREADS_PREFER_PTHREAD_FLAG TRUE)
+find_package(Threads REQUIRED)
+
+if(NOT CMAKE_USE_PTHREADS_INIT)
+    message(FATAL_ERROR "Pthreads not found")
+endif()
+
+# Add the executable
+add_library(${PROJECT_NAME}
+    src/message_writer.c
+    src/message.c
+    src/peer.c
+    src/shmem/transport_shm.c
+    src/shmem/message_writer_shm.c)
+
+set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
+
+target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
+
+if(MESSAGE_BUFFER_SIZE)
+target_compile_definitions(${PROJECT_NAME} PRIVATE MESSAGE_BUFFER_SIZE=${MESSAGE_BUFFER_SIZE})
+endif()
+
+if(MAX_MESSAGE_SIZE)
+target_compile_definitions(${PROJECT_NAME} PRIVATE MAX_MESSAGE_SIZE=${MAX_MESSAGE_SIZE})
+endif()
+
+target_link_libraries(${PROJECT_NAME} PUBLIC
+    mpack
+    Threads::Threads
+)
+
+target_include_directories(${PROJECT_NAME} PRIVATE
+    "include/"
+)
+
+# Add a custom target to run the executable
+add_custom_target(run
+    COMMAND ${PROJECT_NAME}
+    DEPENDS ${PROJECT_NAME}
+    WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
+)
+
+if (ENABLE_TESTING)
+    include(CTest)
+    add_subdirectory(test)
+endif()
