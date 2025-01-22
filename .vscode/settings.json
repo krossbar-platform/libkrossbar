@@ -1,0 +1,42 @@
+{
+    "files.associations": {
+        "rpc_message_builder.h": "c",
+        "chrono": "cpp",
+        "typeindex": "cpp",
+        "typeinfo": "cpp",
+        "stdbool.h": "c",
+        "mpack.h": "c",
+        "mpack-common.h": "c",
+        "mpack-writer.h": "c",
+        "mman.h": "c",
+        "bitset": "c",
+        "string_view": "c",
+        "jemalloc.h": "c",
+        "mman_ext.h": "c",
+        "random": "c",
+        "features.h": "c",
+        "types.h": "c",
+        "ostream": "cpp",
+        "mpack-reader.h": "c",
+        "mpack-node.h": "c",
+        "mpack-expect.h": "c",
+        "*.tcc": "cpp",
+        "charconv": "cpp",
+        "optional": "cpp",
+        "format": "cpp",
+        "ratio": "cpp",
+        "system_error": "cpp",
+        "array": "cpp",
+        "functional": "cpp",
+        "tuple": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "sstream": "cpp",
+        "cstdint": "c"
+    },
+    "cmake.configureArgs": [
+        "-DENABLE_TESTING=ON",
+        "-DBUILD_JEMALLOC=ON",
+        "-DCMAKE_BUILD_TYPE=Debug"
+    ]
+}
