@@ -10,9 +10,8 @@ kb_message_shm_t *message_shm_init(kb_transport_shm_t *transport,
     message->transport = transport;
     message->header = header;
 
-    message->base.reader = malloc(sizeof(mpack_reader_t));
+    message_init(&message->base, buffer, header->size);
     message->base.destroy = message_shm_clean;
-    mpack_reader_init_data(message->base.reader, buffer, header->size);
 
     return message;
 }
@@ -26,10 +25,8 @@ int message_shm_clean(kb_message_t *message)
 
     kb_message_shm_t *self = (kb_message_shm_t *)message;
 
-    transport_shm_message_release(&self->transport, message);
-    mpack_reader_destroy(message->reader);
-    free(message->reader);
-    free(message);
+    transport_shm_message_release(&self->transport->base, message);
+    free(self);
 
     return 0;
 }

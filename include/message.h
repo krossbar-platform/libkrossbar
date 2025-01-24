@@ -6,7 +6,7 @@
 struct mpack_reader_t;
 
 struct kb_message_s {
-    struct mpack_reader_t *reader;
+    struct mpack_reader_t *data_reader;
     int (*destroy)(struct kb_message_s *message);
 };
 
@@ -17,11 +17,12 @@ typedef struct mpack_tag_t kb_message_tag_t;
 
 /**
  * @brief Initialize a new message with data buffer
+ * @param message Pointer to message to initialize
  * @param data Pointer to message data buffer
  * @param size Size of the data buffer
  * @return Pointer to initialized message or NULL on error
  */
-kb_message_t *message_init(void *data, size_t size);
+void message_init(kb_message_t *mesage, void *data, size_t size);
 
 /**
  * @brief Destroy a message and free resources

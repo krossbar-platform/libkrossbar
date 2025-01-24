@@ -10,10 +10,8 @@ kb_message_writer_shm_t *message_writer_shm_init(kb_transport_shm_t *transport,
     writer->transport = transport;
     writer->header = header;
 
+    message_writer_init(&writer->base, buffer, header->size);
     writer->base.send = message_writer_shm_send;
-
-    writer->base.writer = malloc(sizeof(mpack_writer_t));
-    mpack_writer_init(writer->base.writer, buffer, header->size);
 
     return writer;
 }
@@ -27,8 +25,6 @@ int message_writer_shm_send(kb_message_writer_t *writer)
     kb_message_writer_shm_t *self = (kb_message_writer_shm_t*)writer;
 
     transport_shm_message_send(&self->transport->base, writer);
-    mpack_writer_destroy(self->base.writer);
-    free(self->base.writer);
     free(writer);
 
     return 0;

@@ -8,6 +8,7 @@
 #include <string.h>
 
 #include "message_writer_shm.h"
+#include "message_shm.h"
 
 kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t message_size)
 {
@@ -106,7 +107,8 @@ kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
     message_header->size = self->message_size;
     message_header->next_message = NULL;
 
-    message_writer_shm_init(self, message_header, memory_chunk + sizeof(kb_message_header_t));
+    kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, memory_chunk + sizeof(kb_message_header_t));
+    return &writer->base;
 }
 
 int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *writer)
@@ -135,6 +137,40 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     // Allow writing new messages
     sem_post(&arean_header->read_sem);
+}
+
+kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
+{
+    kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
+    kb_arena_t *arena = &self->arena;
+    kb_arena_header_t *arena_header = arena->header;
+
+    sem_wait(&arena_header->read_sem);
+    kb_message_header_t *message_header = (kb_message_header_t *)(arena->addr + arena_header->read_offset);
+    if (message_header == NULL)
+    {
+        sem_post(&arena_header->read_sem);
+        return NULL;
+    }
+
+    kb_message_shm_t *message = message_shm_init(self, message_header, (char *)message_header + sizeof(kb_message_header_t));
+
+    return &message->base;
+}
+
+int transport_shm_message_release(kb_transport_t *transport, kb_message_t *message)
+{
+    kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
+    kb_arena_t *arena = &self->arena;
+    kb_arena_header_t *arena_header = arena->header;
+
+    kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
+    kb_message_header_t *message_header = shm_message->header;
+
+    arena_header->read_offset += message_header->size + sizeof(kb_message_header_t);
+    sem_post(&arena_header->read_sem);
+
+    return 0;
 }
 
 void transport_shm_destroy(kb_transport_t *transport)

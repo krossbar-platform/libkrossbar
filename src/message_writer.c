@@ -3,36 +3,53 @@
 #include <mpack.h>
 
 #define WRITER_FUNC_0(name)                          \
-void message_##name(kb_message_writer_t *writer)     \
-{                                                    \
-    mpack_##name(writer->writer);                   \
-}
+    void message_##name(kb_message_writer_t *writer) \
+    {                                                \
+        mpack_##name(writer->data_writer);           \
+    }
 
-#define WRITER_FUNC_1(name, val_type)                \
-void message_##name(kb_message_writer_t *writer, val_type value) \
-{                                                    \
-    mpack_##name(writer->writer, value);            \
-}
+#define WRITER_FUNC_1(name, val_type)                                \
+    void message_##name(kb_message_writer_t *writer, val_type value) \
+    {                                                                \
+        mpack_##name(writer->data_writer, value);                    \
+    }
 
-#define WRITER_FUNC_2(name, val1_type, val2_type)           \
-void message_##name(kb_message_writer_t *writer, val1_type value1, val2_type value2) \
-{                                                           \
-    mpack_##name(writer->writer, value1, value2);          \
-}
-
+#define WRITER_FUNC_2(name, val1_type, val2_type)                                        \
+    void message_##name(kb_message_writer_t *writer, val1_type value1, val2_type value2) \
+    {                                                                                    \
+        mpack_##name(writer->data_writer, value1, value2);                               \
+    }
 
 // kb_writer_error_t writer_error(kb_message_writer_t* writer) {
 //     return mpack_writer_error(&writer->writer);
 // }
 
+void message_writer_init(kb_message_writer_t *writer, void *data, size_t size)
+{
+    writer->data_writer = malloc(sizeof(mpack_writer_t));
+    mpack_writer_init(writer->data_writer, data, size);
+}
+
 size_t writer_message_size(kb_message_writer_t* writer)
 {
-    return mpack_writer_buffer_used(writer->writer);
+    return mpack_writer_buffer_used(writer->data_writer);
 }
 
 int message_send(kb_message_writer_t *writer)
 {
-    return writer->send(writer);
+    if (writer == NULL || writer->send == NULL)
+    {
+        return 1;
+    }
+
+    // Keep writer because we want to free self memory
+    mpack_writer_t *data_writer = writer->data_writer;
+    int result = writer->send(writer);
+
+    mpack_writer_destroy(data_writer);
+    free(data_writer);
+
+    return result;
 }
 
 WRITER_FUNC_1(write_i8, int8_t);

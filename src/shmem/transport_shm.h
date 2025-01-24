@@ -49,7 +49,7 @@ kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport);
 int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *writer);
 
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport);
-int transport_shm_message_release(kb_transport_t *transport, kb_message_t *writer);
+int transport_shm_message_release(kb_transport_t *transport, kb_message_t *message);
 
 int transport_shm_get_fd(kb_transport_t *transport);
 void transport_shm_destroy(kb_transport_t *transport);

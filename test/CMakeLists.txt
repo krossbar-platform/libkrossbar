@@ -26,3 +26,9 @@ target_include_directories(${BINARY} PRIVATE
 
 include(GoogleTest)
 gtest_discover_tests(${BINARY})
+
+add_custom_target(memcheck
+    COMMAND valgrind --leak-check=full --show-leak-kinds=all --track-origins=yes $<TARGET_FILE:${BINARY}>
+    DEPENDS ${BINARY}
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+)

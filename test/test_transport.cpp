@@ -2,6 +2,7 @@
 
 extern "C" {
 #include <shmem/transport_shm.h>
+#include <shmem/message_shm.h>
 #include <shmem/message_writer_shm.h>
 }
 
@@ -40,7 +41,14 @@ TEST(Transport, TestShmemTransport) {
 
     message_send(message_writer);
 
-    EXPECT_EQ(shm_writer->header->size, 36);
     EXPECT_EQ(arena->header->write_offset, 36 + sizeof(kb_message_header_t));
     EXPECT_EQ(arena->header->read_offset, 0);
+
+    auto message = transport_shm_message_receive(transport);
+    auto shm_message = (kb_message_shm_t *)message;
+
+    EXPECT_EQ(shm_message->header->size, 36);
+    message_destroy(message);
+
+    transport_shm_destroy(transport);
 }
