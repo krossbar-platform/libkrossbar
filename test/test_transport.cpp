@@ -114,5 +114,8 @@ TEST(Transport, TestShmemTransport) {
 
     message_destroy(message);
 
+    EXPECT_EQ(arena->header->read_offset, 0);
+    EXPECT_EQ(arena->header->write_offset, 0);
+
     transport_shm_destroy(transport);
 }

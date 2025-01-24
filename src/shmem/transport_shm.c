@@ -125,9 +125,9 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     // Update next message pointer. Lock from reading previous message to append message to the ring
     sem_wait(&arean_header->read_sem);
-    kb_message_header_t *prev_message_header = (kb_message_header_t*)(arena->addr + arean_header->read_offset);
-
-    if (prev_message_header != NULL) {
+    if (arean_header->read_offset != 0)
+    {
+        kb_message_header_t *prev_message_header = (kb_message_header_t *)(arena->addr + arean_header->read_offset);
         prev_message_header->next_message = message_header;
     }
     sem_post(&arean_header->read_sem);
@@ -136,7 +136,7 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     arean_header->write_offset += message_header->size + sizeof(kb_message_header_t);
 
     // Allow writing new messages
-    sem_post(&arean_header->read_sem);
+    sem_post(&arean_header->write_sem);
 }
 
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
@@ -167,7 +167,19 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
     kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
     kb_message_header_t *message_header = shm_message->header;
 
-    arena_header->read_offset += message_header->size + sizeof(kb_message_header_t);
+    if (message_header->next_message != NULL)
+    {
+        arena_header->read_offset = message_header->next_message - (kb_message_header_t *)arena->addr;
+    }
+    else
+    {
+        arena_header->read_offset = 0;
+
+        sem_wait(&arena_header->write_sem);
+        arena_header->write_offset = 0;
+        sem_post(&arena_header->write_sem);
+    }
+
     sem_post(&arena_header->read_sem);
 
     return 0;
