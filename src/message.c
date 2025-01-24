@@ -33,3 +33,8 @@ kb_message_tag_t message_peek_tag(kb_message_t *message)
 {
     return mpack_peek_tag(message->data_reader);
 }
+
+const char *message_read_bytes(kb_message_t *message, size_t count)
+{
+    return mpack_read_bytes_inplace(message->data_reader, count);
+}

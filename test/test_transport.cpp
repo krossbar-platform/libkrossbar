@@ -1,3 +1,5 @@
+#include <string>
+
 #include <gtest/gtest.h>
 
 extern "C" {
@@ -35,19 +37,81 @@ TEST(Transport, TestShmemTransport) {
     message_write_i8(message_writer, 1);
     message_write_cstr(message_writer, "two");
     message_write_i8(message_writer, 2);
-    message_write_cstr(message_writer, "tree");
+    message_write_cstr(message_writer, "three");
     message_write_i8(message_writer, 3);
     message_complete_map(message_writer);
 
     message_send(message_writer);
 
-    EXPECT_EQ(arena->header->write_offset, 36 + sizeof(kb_message_header_t));
+    EXPECT_EQ(arena->header->write_offset, 37 + sizeof(kb_message_header_t));
     EXPECT_EQ(arena->header->read_offset, 0);
 
     auto message = transport_shm_message_receive(transport);
     auto shm_message = (kb_message_shm_t *)message;
 
-    EXPECT_EQ(shm_message->header->size, 36);
+    EXPECT_EQ(shm_message->header->size, 37);
+
+    auto tag = message_read_tag(message);
+    EXPECT_EQ(tag.type, mpack_type_bool);
+    EXPECT_EQ(tag.v.b, true);
+
+    tag = message_read_tag(message);
+    EXPECT_EQ(tag.type, mpack_type_uint);
+    EXPECT_EQ(tag.v.u, 42);
+
+    tag = message_read_tag(message);
+    EXPECT_EQ(tag.type, mpack_type_str);
+    const char *data = message_read_bytes(message, tag.v.l);
+    std::string str{data, tag.v.l};
+    EXPECT_STREQ(str.c_str(), "Hello world!");
+
+    tag = message_read_tag(message);
+    EXPECT_EQ(tag.type, mpack_type_array);
+    EXPECT_EQ(tag.v.n, 3);
+
+    for (int i = 1; i < 4; i++)
+    {
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_uint);
+        EXPECT_EQ(tag.v.u, i);
+    }
+
+    tag = message_read_tag(message);
+    EXPECT_EQ(tag.type, mpack_type_map);
+    EXPECT_EQ(tag.v.n, 3);
+
+    {
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_str);
+        data = message_read_bytes(message, tag.v.l);
+        str = std::string{data, tag.v.l};
+        EXPECT_STREQ(str.c_str(), "one");
+
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_uint);
+        EXPECT_EQ(tag.v.u, 1);
+
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_str);
+        data = message_read_bytes(message, tag.v.l);
+        str = std::string{data, tag.v.l};
+        EXPECT_STREQ(str.c_str(), "two");
+
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_uint);
+        EXPECT_EQ(tag.v.u, 2);
+
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_str);
+        data = message_read_bytes(message, tag.v.l);
+        str = std::string{data, tag.v.l};
+        EXPECT_STREQ(str.c_str(), "three");
+
+        tag = message_read_tag(message);
+        EXPECT_EQ(tag.type, mpack_type_uint);
+        EXPECT_EQ(tag.v.u, 3);
+    }
+
     message_destroy(message);
 
     transport_shm_destroy(transport);
