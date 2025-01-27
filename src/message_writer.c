@@ -42,6 +42,12 @@ int message_send(kb_message_writer_t *writer)
         return 1;
     }
 
+    if (mpack_writer_error(writer->data_writer) != mpack_ok)
+    {
+        fprintf(stderr, "Error writing message: %s\n", mpack_error_to_string(mpack_writer_error(writer->data_writer)));
+        return 1;
+    }
+
     // Keep writer because we want to free self memory
     mpack_writer_t *data_writer = writer->data_writer;
     int result = writer->send(writer);
