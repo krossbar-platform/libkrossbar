@@ -7,8 +7,20 @@
 #include <unistd.h>
 #include <string.h>
 
+#include <liburing.h>
+
 #include "message_writer_shm.h"
 #include "message_shm.h"
+
+#define RING_QUEUE_DEPTH 32
+
+enum ring_op_e
+{
+    RING_OP_SEND,
+    RING_OP_RECV
+};
+
+typedef enum ring_op_e ring_op_t;
 
 kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t message_size)
 {
@@ -21,7 +33,6 @@ kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t 
     transport->name = strdup(name);
     transport->message_size = message_size;
     kb_arena_t *arena = &transport->arena;
-    arena->size = buffer_size;
 
     size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
 
@@ -29,44 +40,92 @@ kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t 
     transport->shm_fd = memfd_create(transport->name, 0);
     if (transport->shm_fd == -1) {
         perror("memfd_create failed");
-        transport_shm_destroy((kb_transport_t *)transport);
+        transport_shm_destroy(&transport->base);
         return NULL;
     }
 
     // Set the size
-    if (ftruncate(transport->shm_fd, alloc_size) == -1) {
+    if (ftruncate(transport->shm_fd, alloc_size) == -1)
+    {
         perror("ftruncate failed");
-        transport_shm_destroy((kb_transport_t *)transport);
+        transport_shm_destroy(&transport->base);
         return NULL;
     }
 
     // Map the shared memory
     void *map_addr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
-                               MAP_SHARED, transport->shm_fd, 0);
-    if (transport->arena.addr == MAP_FAILED) {
+                          MAP_SHARED, transport->shm_fd, 0);
+    if (map_addr == MAP_FAILED)
+    {
         perror("mmap failed");
-        transport_shm_destroy((kb_transport_t *)transport);
+        transport_shm_destroy(&transport->base);
         return NULL;
     }
 
     arena->addr = map_addr + sizeof(kb_arena_header_t);
-    arena->header = (kb_arena_header_t*)map_addr;
+    arena->header = (kb_arena_header_t *)map_addr;
     kb_arena_header_t *header = arena->header;
 
     header->write_offset = 0;
     header->read_offset = 0;
+    header->size = buffer_size;
 
-    if (sem_init(&header->write_sem, 1, 1) == -1) {
+    if (sem_init(&header->write_sem, 1, 1) == -1)
+    {
         perror("sem_init failed");
-        transport_shm_destroy((kb_transport_t *)transport);
+        transport_shm_destroy(&transport->base);
         return NULL;
     }
 
-    if (sem_init(&header->read_sem, 1, 1) == -1) {
+    if (sem_init(&header->read_sem, 1, 1) == -1)
+    {
         perror("sem_init failed");
-        transport_shm_destroy((kb_transport_t *)transport);
+        transport_shm_destroy(&transport->base);
         return NULL;
     }
+
+    return (kb_transport_t *)transport;
+}
+
+kb_transport_t *transport_shm_connect(const char *name, int fd)
+{
+    kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
+    if (transport == NULL)
+    {
+        perror("calloc failed");
+        return NULL;
+    }
+
+    transport->name = strdup(name);
+    transport->message_size = 0;
+    transport->shm_fd = fd;
+    kb_arena_t *arena = &transport->arena;
+
+    // Read mapping size
+    void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ, MAP_SHARED, fd, 0);
+    if (map_addr == MAP_FAILED)
+    {
+        perror("Header mmap failed");
+        transport_shm_destroy(&transport->base);
+        return NULL;
+    }
+
+    kb_arena_header_t *arena_header = (kb_arena_header_t *)map_addr;
+    size_t mmap_size = arena_header->size + sizeof(kb_arena_header_t);
+    munmap(map_addr, sizeof(kb_arena_header_t));
+
+    // Map the arena. Now for real
+    map_addr = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
+    if (map_addr == MAP_FAILED)
+    {
+        perror("mmap failed");
+        transport_shm_destroy(&transport->base);
+        return NULL;
+    }
+
+    arena->addr = map_addr + sizeof(kb_arena_header_t);
+    arena->header = (kb_arena_header_t *)map_addr;
+    kb_arena_header_t *header = arena->header;
 
     return (kb_transport_t*)transport;
 }
@@ -90,7 +149,8 @@ kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
     sem_wait(&arena_header->write_sem);
     void *memory_chunk = NULL;
     // Check if we have enough space to write the message at the end of the region
-    if (arena->size - arena_header->write_offset >= memory_needed) {
+    if (arena_header->size - arena_header->write_offset >= memory_needed)
+    {
         memory_chunk = arena->addr + arena_header->write_offset;
     }
     // Check if instead have enough space to write the message at the beginning of the region
@@ -145,6 +205,11 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
     kb_arena_t *arena = &self->arena;
     kb_arena_header_t *arena_header = arena->header;
 
+    if (arena_header->read_offset == arena_header->write_offset)
+    {
+        return NULL;
+    }
+
     sem_wait(&arena_header->read_sem);
     kb_message_header_t *message_header = (kb_message_header_t *)(arena->addr + arena_header->read_offset);
     if (message_header == NULL)
@@ -195,7 +260,7 @@ void transport_shm_destroy(kb_transport_t *transport)
 
     kb_arena_t *arena = &self->arena;
     if (arena->addr != NULL) {
-        munmap(arena->addr, arena->size);
+        munmap(arena->addr, arena->header->size + sizeof(kb_arena_header_t));
     }
 
     if (self->shm_fd != 0) {

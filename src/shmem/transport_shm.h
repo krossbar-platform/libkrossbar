@@ -12,6 +12,7 @@ struct kb_arena_header_s
     sem_t read_sem;
     uint32_t write_offset;
     uint32_t read_offset;
+    size_t size;
 };
 
 typedef struct kb_arena_header_s kb_arena_header_t;
@@ -20,7 +21,6 @@ struct kb_arena_s
 {
     kb_arena_header_t *header;
     void *addr;
-    size_t size;
 };
 
 typedef struct kb_arena_s kb_arena_t;
@@ -44,6 +44,7 @@ struct kb_transport_shm_s
 typedef struct kb_transport_shm_s kb_transport_shm_t;
 
 kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t message_size);
+kb_transport_t *transport_shm_connect(const char *name, int fd);
 
 kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport);
 int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *writer);

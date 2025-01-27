@@ -12,13 +12,13 @@ static constexpr size_t ARENA_SIZE = 1024;
 static constexpr size_t MESSAGE_SIZE = 128;
 
 TEST(Transport, TestShmemTransport) {
-    auto transport = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE);
-    auto shm_transport = (kb_transport_shm_t *)transport;
-    auto arena = &shm_transport->arena;
+    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE);
+    auto shm_transport_writer = (kb_transport_shm_t *)transport_writer;
+    auto arena = &shm_transport_writer->arena;
 
-    EXPECT_EQ(arena->size, ARENA_SIZE);
+    EXPECT_EQ(arena->header->size, ARENA_SIZE);
 
-    auto message_writer = transport_shm_message_init(transport);
+    auto message_writer = transport_shm_message_init(transport_writer);
     auto shm_writer = (kb_message_writer_shm_t *)message_writer;
 
     EXPECT_EQ(shm_writer->header->size, MESSAGE_SIZE);
@@ -46,7 +46,11 @@ TEST(Transport, TestShmemTransport) {
     EXPECT_EQ(arena->header->write_offset, 37 + sizeof(kb_message_header_t));
     EXPECT_EQ(arena->header->read_offset, 0);
 
-    auto message = transport_shm_message_receive(transport);
+    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer));
+    auto message = transport_shm_message_receive(transport_reader);
+
+    EXPECT_NE(message, nullptr);
+
     auto shm_message = (kb_message_shm_t *)message;
 
     EXPECT_EQ(shm_message->header->size, 37);
@@ -114,8 +118,10 @@ TEST(Transport, TestShmemTransport) {
 
     message_destroy(message);
 
+    EXPECT_EQ(transport_shm_message_receive(transport_writer), nullptr);
+
     EXPECT_EQ(arena->header->read_offset, 0);
     EXPECT_EQ(arena->header->write_offset, 0);
 
-    transport_shm_destroy(transport);
+    transport_shm_destroy(transport_writer);
 }

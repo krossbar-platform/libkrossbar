@@ -32,7 +32,8 @@
         "type_traits": "cpp",
         "utility": "cpp",
         "sstream": "cpp",
-        "cstdint": "c"
+        "cstdint": "c",
+        "initializer_list": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",
