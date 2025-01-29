@@ -22,8 +22,14 @@ enum ring_op_e
 
 typedef enum ring_op_e ring_op_t;
 
-kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t message_size)
+kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size)
 {
+    if (buffer_size < max_message_size)
+    {
+        perror("Buffer size is smaller than message size");
+        return NULL;
+    }
+
     kb_transport_shm_t* transport = calloc(1, sizeof(kb_transport_shm_t));
     if (transport == NULL) {
         perror("calloc failed");
@@ -31,7 +37,7 @@ kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t 
     }
 
     transport->name = strdup(name);
-    transport->message_size = message_size;
+    transport->max_message_size = max_message_size;
     kb_arena_t *arena = &transport->arena;
 
     size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
@@ -69,6 +75,7 @@ kb_transport_t* transport_shm_init(const char *name, size_t buffer_size, size_t 
     header->write_offset = 0;
     header->read_offset = 0;
     header->size = buffer_size;
+    atomic_init(&header->num_messages, 0);
 
     if (sem_init(&header->write_sem, 1, 1) == -1)
     {
@@ -97,7 +104,7 @@ kb_transport_t *transport_shm_connect(const char *name, int fd)
     }
 
     transport->name = strdup(name);
-    transport->message_size = 0;
+    transport->max_message_size = 0;
     transport->shm_fd = fd;
     kb_arena_t *arena = &transport->arena;
 
@@ -144,28 +151,53 @@ kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
     kb_arena_t *arena = &self->arena;
     kb_arena_header_t *arena_header = arena->header;
 
-    size_t memory_needed = self->message_size + sizeof(kb_message_header_t);
+    size_t memory_needed = self->max_message_size + sizeof(kb_message_header_t);
 
     sem_wait(&arena_header->write_sem);
     void *memory_chunk = NULL;
-    // Check if we have enough space to write the message at the end of the region
-    if (arena_header->size - arena_header->write_offset >= memory_needed)
+
+    // In case the reader read all the messages, we reset last message pointer
+    if (atomic_load(&arena_header->num_messages) == 0)
+    {
+        self->last_message = NULL;
+    }
+
+    // Full ring
+    if (arena_header->write_offset == arena_header->read_offset && self->last_message != NULL)
+    {
+        sem_post(&arena_header->write_sem);
+        return NULL;
+    }
+    // Write position in at the end of the ring (can be empty if both values == arena->addr)
+    else if (arena_header->write_offset >= arena_header->read_offset)
+    {
+        // Check if we have enough space to write the message at the end of the region
+        if (arena_header->size - arena_header->write_offset >= memory_needed)
+        {
+            memory_chunk = arena->addr + arena_header->write_offset;
+        }
+        // No space available at the end of the region. Try from the start
+        else
+        {
+            arena_header->write_offset = 0;
+            sem_post(&arena_header->write_sem);
+            return transport_shm_message_init(transport);
+        }
+    }
+    // Write position is in the beginning of the region. Try to fit the message before the ring head
+    else if (arena_header->read_offset - arena_header->write_offset >= memory_needed)
     {
         memory_chunk = arena->addr + arena_header->write_offset;
     }
-    // Check if instead have enough space to write the message at the beginning of the region
-    else if (arena_header->read_offset >= memory_needed) {
-        memory_chunk = arena->addr;
-    }
-    // No space available
-    else {
+    else
+    {
         sem_post(&arena_header->write_sem);
         return NULL;
     }
 
     kb_message_header_t *message_header = (kb_message_header_t*)memory_chunk;
-    message_header->size = self->message_size;
-    message_header->next_message = NULL;
+    message_header->size = self->max_message_size;
+    message_header->next_message_offset = -1;
 
     kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, memory_chunk + sizeof(kb_message_header_t));
     return &writer->base;
@@ -177,26 +209,27 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     kb_message_writer_shm_t *shm_writer = (kb_message_writer_shm_t*)writer;
 
     kb_arena_t *arena = &self->arena;
-    kb_arena_header_t *arean_header = arena->header;
+    kb_arena_header_t *arena_header = arena->header;
 
     // Shrink the memory region to needed size
     kb_message_header_t *message_header = shm_writer->header;
     message_header->size = writer_message_size(writer);
 
-    // Update next message pointer. Lock from reading previous message to append message to the ring
-    sem_wait(&arean_header->read_sem);
-    if (arean_header->read_offset != 0)
+    // Expand the ring by appending message to it
+    if (self->last_message != NULL)
     {
-        kb_message_header_t *prev_message_header = (kb_message_header_t *)(arena->addr + arean_header->read_offset);
-        prev_message_header->next_message = message_header;
+        self->last_message->next_message_offset = (void *)message_header - (void *)arena->addr;
     }
-    sem_post(&arean_header->read_sem);
+
+    self->last_message = message_header;
 
     // Move the write offset
-    arean_header->write_offset += message_header->size + sizeof(kb_message_header_t);
+    arena_header->write_offset += message_header->size + sizeof(kb_message_header_t);
+
+    atomic_fetch_add(&arena_header->num_messages, 1);
 
     // Allow writing new messages
-    sem_post(&arean_header->write_sem);
+    sem_post(&arena_header->write_sem);
 }
 
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
@@ -205,7 +238,7 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
     kb_arena_t *arena = &self->arena;
     kb_arena_header_t *arena_header = arena->header;
 
-    if (arena_header->read_offset == arena_header->write_offset)
+    if (atomic_load(&arena_header->num_messages) == 0)
     {
         return NULL;
     }
@@ -232,18 +265,21 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
     kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
     kb_message_header_t *message_header = shm_message->header;
 
-    if (message_header->next_message != NULL)
+    if (message_header->next_message_offset != -1)
     {
-        arena_header->read_offset = message_header->next_message - (kb_message_header_t *)arena->addr;
+        arena_header->read_offset = message_header->next_message_offset;
     }
     else
     {
+        self->last_message = NULL;
         arena_header->read_offset = 0;
 
         sem_wait(&arena_header->write_sem);
         arena_header->write_offset = 0;
         sem_post(&arena_header->write_sem);
     }
+
+    atomic_fetch_sub(&arena_header->num_messages, 1);
 
     sem_post(&arena_header->read_sem);
 
