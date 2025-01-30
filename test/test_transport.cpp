@@ -21,7 +21,7 @@ TEST(Transport, TestShmemTransport) {
 
     ASSERT_EQ(arena->header->size, ARENA_SIZE);
 
-    auto message_writer = transport_shm_message_init(transport_writer);
+    auto message_writer = transport_message_init(transport_writer);
     auto shm_writer = (kb_message_writer_shm_t *)message_writer;
 
     ASSERT_EQ(shm_writer->header->size, MESSAGE_SIZE);
@@ -51,7 +51,7 @@ TEST(Transport, TestShmemTransport) {
     ASSERT_EQ(arena->header->num_messages, 1);
 
     auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer));
-    auto message = transport_shm_message_receive(transport_reader);
+    auto message = transport_message_receive(transport_reader);
 
     ASSERT_NE(message, nullptr);
 
@@ -123,13 +123,13 @@ TEST(Transport, TestShmemTransport) {
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 0);
 
-    ASSERT_EQ(transport_shm_message_receive(transport_writer), nullptr);
+    ASSERT_EQ(transport_message_receive(transport_writer), nullptr);
 
     ASSERT_EQ(arena->header->read_offset, 0);
     ASSERT_EQ(arena->header->write_offset, 0);
 
-    transport_shm_destroy(transport_writer);
-    transport_shm_destroy(transport_reader);
+    transport_destroy(transport_writer);
+    transport_destroy(transport_reader);
 }
 
 TEST(Transport, TestShmemCycle)
@@ -139,29 +139,29 @@ TEST(Transport, TestShmemCycle)
 
     ASSERT_EQ(arena->header->write_offset, 0);
 
-    auto message_writer = transport_shm_message_init(&transport_writer->base);
+    auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
     ASSERT_EQ(arena->header->write_offset, 144);
     ASSERT_EQ(arena->header->num_messages, 1);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
     ASSERT_EQ(arena->header->write_offset, 288);
     ASSERT_EQ(arena->header->num_messages, 2);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
     ASSERT_EQ(arena->header->write_offset, 432);
     ASSERT_EQ(arena->header->num_messages, 3);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
     auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd);
-    auto message = transport_shm_message_receive(transport_reader);
+    auto message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
 
     auto tag = message_read_tag(message);
@@ -172,21 +172,21 @@ TEST(Transport, TestShmemCycle)
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 2);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 1);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 0);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_EQ(message, nullptr);
 
-    transport_shm_destroy(&transport_writer->base);
-    transport_shm_destroy(transport_reader);
+    transport_destroy(&transport_writer->base);
+    transport_destroy(transport_reader);
 }
 
 TEST(Transport, TestShmemReplace)
@@ -196,87 +196,87 @@ TEST(Transport, TestShmemReplace)
 
     auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd);
 
-    auto message_writer = transport_shm_message_init(&transport_writer->base);
+    auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     // [1, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    auto message = transport_shm_message_receive(transport_reader);
+    auto message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
     // [0, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     // [1, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
     // [0, 0, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     // [1, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
     // [0, 0, 0]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     // [1, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    transport_shm_destroy(&transport_writer->base);
-    transport_shm_destroy(transport_reader);
+    transport_destroy(&transport_writer->base);
+    transport_destroy(transport_reader);
 }
 
 TEST(Transport, TestShmemSingleReplace)
@@ -286,70 +286,70 @@ TEST(Transport, TestShmemSingleReplace)
 
     auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd);
 
-    auto message_writer = transport_shm_message_init(&transport_writer->base);
+    auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     // [1, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    auto message = transport_shm_message_receive(transport_reader);
+    auto message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
     // [0, 1, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
     // [1, 0, 1]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
 
     // [1, 1, 0]
-    message_writer = transport_shm_message_init(&transport_writer->base);
+    message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     // [1, 1, 1]
     ASSERT_EQ(arena->header->num_messages, 3);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 2);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 1);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
     message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 0);
 
-    message = transport_shm_message_receive(transport_reader);
+    message = transport_message_receive(transport_reader);
     ASSERT_EQ(message, nullptr);
 
-    transport_shm_destroy(&transport_writer->base);
-    transport_shm_destroy(transport_reader);
+    transport_destroy(&transport_writer->base);
+    transport_destroy(transport_reader);
 }

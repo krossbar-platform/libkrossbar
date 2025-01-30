@@ -38,6 +38,12 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
 
     transport->name = strdup(name);
     transport->max_message_size = max_message_size;
+
+    transport->base.message_init = transport_shm_message_init;
+    transport->base.message_receive = transport_shm_message_receive;
+    transport->base.get_fd = transport_shm_get_fd;
+    transport->base.destroy = transport_shm_destroy;
+
     kb_arena_t *arena = &transport->arena;
 
     size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
@@ -106,6 +112,12 @@ kb_transport_t *transport_shm_connect(const char *name, int fd)
     transport->name = strdup(name);
     transport->max_message_size = 0;
     transport->shm_fd = fd;
+
+    transport->base.message_init = transport_shm_message_init;
+    transport->base.message_receive = transport_shm_message_receive;
+    transport->base.get_fd = transport_shm_get_fd;
+    transport->base.destroy = transport_shm_destroy;
+
     kb_arena_t *arena = &transport->arena;
 
     // Read mapping size
