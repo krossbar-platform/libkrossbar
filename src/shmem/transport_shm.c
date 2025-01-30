@@ -277,6 +277,7 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
     kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
     kb_message_header_t *message_header = shm_message->header;
 
+    sem_wait(&arena_header->write_sem);
     if (message_header->next_message_offset != -1)
     {
         arena_header->read_offset = message_header->next_message_offset;
@@ -286,10 +287,9 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
         self->last_message = NULL;
         arena_header->read_offset = 0;
 
-        sem_wait(&arena_header->write_sem);
         arena_header->write_offset = 0;
-        sem_post(&arena_header->write_sem);
     }
+    sem_post(&arena_header->write_sem);
 
     atomic_fetch_sub(&arena_header->num_messages, 1);
 
