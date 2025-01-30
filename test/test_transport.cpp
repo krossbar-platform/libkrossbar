@@ -129,6 +129,7 @@ TEST(Transport, TestShmemTransport) {
     ASSERT_EQ(arena->header->write_offset, 0);
 
     transport_shm_destroy(transport_writer);
+    transport_shm_destroy(transport_reader);
 }
 
 TEST(Transport, TestShmemCycle)
@@ -168,21 +169,24 @@ TEST(Transport, TestShmemCycle)
     ASSERT_EQ(tag.v.l, BUFFER_SIZE);
 
     ASSERT_EQ(arena->header->num_messages, 3);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 2);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 1);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 0);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_EQ(message, nullptr);
+
+    transport_shm_destroy(&transport_writer->base);
+    transport_shm_destroy(transport_reader);
 }
 
 TEST(Transport, TestShmemReplace)
@@ -210,7 +214,7 @@ TEST(Transport, TestShmemReplace)
 
     auto message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     // [0, 1, 1]
     message_writer = transport_shm_message_init(&transport_writer->base);
@@ -223,11 +227,11 @@ TEST(Transport, TestShmemReplace)
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     // [0, 0, 1]
     message_writer = transport_shm_message_init(&transport_writer->base);
@@ -244,15 +248,15 @@ TEST(Transport, TestShmemReplace)
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     // [0, 0, 0]
     message_writer = transport_shm_message_init(&transport_writer->base);
@@ -270,6 +274,9 @@ TEST(Transport, TestShmemReplace)
     // [1, 1, 1]
     message_writer = transport_shm_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
+
+    transport_shm_destroy(&transport_writer->base);
+    transport_shm_destroy(transport_reader);
 }
 
 TEST(Transport, TestShmemSingleReplace)
@@ -297,7 +304,7 @@ TEST(Transport, TestShmemSingleReplace)
 
     auto message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     // [0, 1, 1]
     message_writer = transport_shm_message_init(&transport_writer->base);
@@ -306,7 +313,7 @@ TEST(Transport, TestShmemSingleReplace)
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     // [1, 0, 1]
     message_writer = transport_shm_message_init(&transport_writer->base);
@@ -315,7 +322,7 @@ TEST(Transport, TestShmemSingleReplace)
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
 
     // [1, 1, 0]
     message_writer = transport_shm_message_init(&transport_writer->base);
@@ -327,19 +334,22 @@ TEST(Transport, TestShmemSingleReplace)
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 2);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 1);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
-    transport_shm_message_release(transport_reader, message);
+    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 0);
 
     message = transport_shm_message_receive(transport_reader);
     ASSERT_EQ(message, nullptr);
+
+    transport_shm_destroy(&transport_writer->base);
+    transport_shm_destroy(transport_reader);
 }
