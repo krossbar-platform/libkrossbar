@@ -1,6 +1,7 @@
 cmake_minimum_required(VERSION 3.5)
 
 include(MPack.cmake)
+include(UTHash.cmake)
 
 # Set the project name
 project(krossbar)
@@ -51,6 +52,7 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
 target_include_directories(${PROJECT_NAME} PRIVATE
     "include/"
     ${URING_INCLUDE_DIRS}
+    ${UTHASH_INCLUDE_DIRS}
 )
 
 # Add a custom target to run the executable

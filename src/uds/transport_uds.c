@@ -1,6 +1,5 @@
 #include "transport_uds.h"
 
-#define _GNU_SOURCE
 #include <sys/socket.h>
 #include <fcntl.h>
 
