@@ -2,11 +2,13 @@
 
 #include <sys/socket.h>
 #include <fcntl.h>
+#include <unistd.h>
 
 #include <mpack-writer.h>
 #include <utlist.h>
 
 #include "message_writer_uds.h"
+#include "message_uds.h"
 
 kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages)
 {
@@ -63,7 +65,7 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
     char *data = writer->data_writer->buffer;
 
     // Shrink message to fre some extra memory
-    realloc(data, message_size);
+    data = realloc(data, message_size);
     out_messages_t *out_message = calloc(1, sizeof(out_messages_t));
     out_message->message.data = data;
     out_message->message.data_size = message_size;
@@ -106,10 +108,8 @@ kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
 
         if (self->in_message.current_offset == self->in_message.data_size)
         {
-            kb_message_t *message = malloc(sizeof(kb_message_t));
-            message_init(message, self->in_message.data, self->in_message.data_size);
-
-            return message;
+            kb_message_uds_t *message = message_uds_init(self, self->in_message.data, self->in_message.data_size);
+            return &message->base;
         }
     }
 
@@ -145,7 +145,7 @@ void transport_uds_destroy(kb_transport_t *transport)
 
     if (self->name != NULL)
     {
-        free(self->name);
+        free((char *)self->name);
     }
 
     if (self->out_messages != NULL)

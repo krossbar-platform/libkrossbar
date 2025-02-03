@@ -27,6 +27,7 @@ add_library(${PROJECT_NAME}
     src/shmem/message_shm.c
     src/shmem/message_writer_shm.c
     src/uds/transport_uds.c
+    src/uds/message_uds.c
     src/uds/message_writer_uds.c)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
