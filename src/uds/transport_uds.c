@@ -1,5 +1,6 @@
 #include "transport_uds.h"
 
+#include <assert.h>
 #include <sys/socket.h>
 #include <fcntl.h>
 #include <unistd.h>

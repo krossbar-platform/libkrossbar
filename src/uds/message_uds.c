@@ -1,9 +1,15 @@
 #include "message_uds.h"
 
+#include <assert.h>
+
 kb_message_uds_t *message_uds_init(kb_transport_uds_t *transport,
                                    char *buffer,
                                    size_t size)
 {
+    assert(transport != NULL);
+    assert(buffer != NULL);
+    assert(size > 0);
+
     kb_message_uds_t *message = calloc(1, sizeof(kb_message_uds_t));
     message->transport = transport;
 

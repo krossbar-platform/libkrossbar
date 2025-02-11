@@ -1,9 +1,15 @@
 #include "message_writer_uds.h"
 
+#include <assert.h>
+
 kb_message_writer_uds_t *message_writer_uds_init(kb_transport_uds_t *transport,
                                                  char *buffer,
                                                  size_t buffer_size)
 {
+    assert(transport != NULL);
+    assert(buffer != NULL);
+    assert(buffer_size > 0);
+
     kb_message_writer_uds_t *writer = malloc(sizeof(kb_message_writer_uds_t));
     writer->transport = transport;
 

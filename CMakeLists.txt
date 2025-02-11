@@ -26,6 +26,7 @@ add_library(${PROJECT_NAME}
     src/shmem/transport_shm.c
     src/shmem/message_shm.c
     src/shmem/message_writer_shm.c
+    src/shmem/event_manager_shm.c
     src/uds/transport_uds.c
     src/uds/message_uds.c
     src/uds/message_writer_uds.c)

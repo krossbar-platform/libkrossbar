@@ -1,5 +1,6 @@
 #include "transport_shm.h"
 
+#include <assert.h>
 #include <sys/mman.h>
 #include <stdlib.h>
 #include <stdbool.h>
@@ -22,8 +23,10 @@ enum ring_op_e
 
 typedef enum ring_op_e ring_op_t;
 
-kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size)
+kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size, struct io_uring *ring)
 {
+    assert(ring != NULL);
+
     if (buffer_size < max_message_size)
     {
         perror("Buffer size is smaller than message size");
@@ -43,6 +46,8 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     transport->base.message_receive = transport_shm_message_receive;
     transport->base.get_fd = transport_shm_get_fd;
     transport->base.destroy = transport_shm_destroy;
+
+    event_manager_shm_init(&transport->event_manager, transport, ring);
 
     kb_arena_t *arena = &transport->arena;
 
@@ -100,7 +105,7 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     return (kb_transport_t *)transport;
 }
 
-kb_transport_t *transport_shm_connect(const char *name, int fd)
+kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring *ring)
 {
     kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
     if (transport == NULL)
@@ -117,6 +122,8 @@ kb_transport_t *transport_shm_connect(const char *name, int fd)
     transport->base.message_receive = transport_shm_message_receive;
     transport->base.get_fd = transport_shm_get_fd;
     transport->base.destroy = transport_shm_destroy;
+
+    event_manager_shm_init(&transport->event_manager, transport, ring);
 
     kb_arena_t *arena = &transport->arena;
 
@@ -147,13 +154,6 @@ kb_transport_t *transport_shm_connect(const char *name, int fd)
     kb_arena_header_t *header = arena->header;
 
     return (kb_transport_t*)transport;
-}
-
-int transport_shm_get_fd(kb_transport_t *transport)
-{
-    kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
-
-    return self->shm_fd;
 }
 
 kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
@@ -242,6 +242,8 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     // Allow writing new messages
     sem_post(&arena_header->write_sem);
+
+    event_manager_shm_signal_new_message(&self->event_manager);
 }
 
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport)

@@ -33,7 +33,10 @@
         "utility": "cpp",
         "sstream": "cpp",
         "cstdint": "c",
-        "initializer_list": "c"
+        "initializer_list": "c",
+        "liburing.h": "c",
+        "futex.h": "c",
+        "syscall.h": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",

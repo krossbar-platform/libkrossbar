@@ -4,6 +4,7 @@
 #include <stdatomic.h>
 
 #include "transport.h"
+#include "event_manager_shm.h"
 
 struct kb_message_writer_shm_s;
 
@@ -14,7 +15,7 @@ struct kb_arena_header_s
     size_t write_offset;
     size_t read_offset;
     size_t size;
-    atomic_size_t num_messages;
+    uint32_t num_messages;
 };
 
 typedef struct kb_arena_header_s kb_arena_header_t;
@@ -38,6 +39,7 @@ struct kb_transport_shm_s
 {
     kb_transport_t base;
     kb_arena_t arena;
+    kb_event_manager_shm_t event_manager;
     const char *name;
     int shm_fd;
     size_t max_message_size;
@@ -46,8 +48,8 @@ struct kb_transport_shm_s
 
 typedef struct kb_transport_shm_s kb_transport_shm_t;
 
-kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size);
-kb_transport_t *transport_shm_connect(const char *name, int fd);
+kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size, struct io_uring *ring);
+kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring *ring);
 
 kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport);
 int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *writer);
@@ -55,5 +57,11 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport);
 int transport_shm_message_release(kb_transport_t *transport, kb_message_t *message);
 
-int transport_shm_get_fd(kb_transport_t *transport);
+inline int transport_shm_get_fd(kb_transport_t *transport)
+{
+    kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
+
+    return self->shm_fd;
+}
+
 void transport_shm_destroy(kb_transport_t *transport);

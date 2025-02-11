@@ -1,11 +1,17 @@
 #include "message_writer_shm.h"
 
+#include <assert.h>
+
 #include <mpack.h>
 
 kb_message_writer_shm_t *message_writer_shm_init(kb_transport_shm_t *transport,
                                                  kb_message_header_t *header,
                                                  char *buffer)
 {
+    assert(transport != NULL);
+    assert(header != NULL);
+    assert(buffer != NULL);
+
     kb_message_writer_shm_t *writer = malloc(sizeof(kb_message_writer_shm_t));
     writer->transport = transport;
     writer->header = header;

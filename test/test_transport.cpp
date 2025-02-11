@@ -1,6 +1,7 @@
 #include <string>
 
 #include <gtest/gtest.h>
+#include <liburing.h>
 
 extern "C" {
 #include <shmem/transport_shm.h>
@@ -10,12 +11,16 @@ extern "C" {
 
 static constexpr size_t ARENA_SIZE = 512;
 static constexpr size_t MESSAGE_SIZE = 128;
+static constexpr size_t RING_QUEUE_DEPTH = 32;
 
 static constexpr size_t BUFFER_SIZE = MESSAGE_SIZE - 2;
 static char RANDOM_BUFFER[BUFFER_SIZE] = {};
 
 TEST(Transport, TestShmemTransport) {
-    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE);
+    struct io_uring ring;
+    ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+
+    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
     auto shm_transport_writer = (kb_transport_shm_t *)transport_writer;
     auto arena = &shm_transport_writer->arena;
 
@@ -50,7 +55,7 @@ TEST(Transport, TestShmemTransport) {
     ASSERT_EQ(arena->header->read_offset, 0);
     ASSERT_EQ(arena->header->num_messages, 1);
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer));
+    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring);
     auto message = transport_message_receive(transport_reader);
 
     ASSERT_NE(message, nullptr);
@@ -134,7 +139,10 @@ TEST(Transport, TestShmemTransport) {
 
 TEST(Transport, TestShmemCycle)
 {
-    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE);
+    struct io_uring ring;
+    ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+
+    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
     auto arena = &transport_writer->arena;
 
     ASSERT_EQ(arena->header->write_offset, 0);
@@ -160,7 +168,7 @@ TEST(Transport, TestShmemCycle)
     message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd);
+    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring);
     auto message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
 
@@ -191,10 +199,13 @@ TEST(Transport, TestShmemCycle)
 
 TEST(Transport, TestShmemReplace)
 {
-    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE);
+    struct io_uring ring;
+    ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+
+    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
     auto arena = &transport_writer->arena;
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd);
+    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring);
 
     auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
@@ -281,10 +292,13 @@ TEST(Transport, TestShmemReplace)
 
 TEST(Transport, TestShmemSingleReplace)
 {
-    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE);
+    struct io_uring ring;
+    ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+
+    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
     auto arena = &transport_writer->arena;
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd);
+    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring);
 
     auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
