@@ -2,8 +2,6 @@
 
 #include <assert.h>
 #include <linux/futex.h>
-#include <sys/syscall.h>
-#include <stdatomic.h>
 
 #include <liburing.h>
 

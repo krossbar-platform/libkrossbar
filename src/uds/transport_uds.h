@@ -1,5 +1,6 @@
 #pragma once
 
+#include "event_manager_uds.h"
 #include "transport.h"
 
 struct io_uring;
@@ -25,7 +26,7 @@ typedef struct out_messages_s out_messages_t;
 struct kb_transport_uds_s
 {
     kb_transport_t base;
-    struct io_uring *ring;
+    kb_event_manager_uds_t event_manager;
     const char *name;
     int sock_fd;
     size_t max_message_size;
@@ -41,7 +42,7 @@ struct kb_transport_uds_s
 
 typedef struct kb_transport_uds_s kb_transport_uds_t;
 
-kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages);
+kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages, struct io_uring *ring);
 
 kb_message_writer_t *transport_uds_message_init(kb_transport_t *transport);
 int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *writer);

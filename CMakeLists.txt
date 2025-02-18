@@ -29,7 +29,8 @@ add_library(${PROJECT_NAME}
     src/shmem/event_manager_shm.c
     src/uds/transport_uds.c
     src/uds/message_uds.c
-    src/uds/message_writer_uds.c)
+    src/uds/message_writer_uds.c
+    src/uds/event_manager_uds.c)
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 
