@@ -128,7 +128,7 @@ kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring 
     kb_arena_t *arena = &transport->arena;
 
     // Read mapping size
-    void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ, MAP_SHARED, fd, 0);
+    void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map_addr == MAP_FAILED)
     {
         perror("Header mmap failed");
