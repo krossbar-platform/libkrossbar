@@ -300,6 +300,13 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
     return 0;
 }
 
+int transport_shm_get_fd(kb_transport_t *transport)
+{
+    kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
+
+    return self->shm_fd;
+}
+
 void transport_shm_destroy(kb_transport_t *transport)
 {
     kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
