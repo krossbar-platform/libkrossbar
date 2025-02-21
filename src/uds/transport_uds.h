@@ -10,6 +10,7 @@ struct message_buffer_s
     char *data;
     size_t data_size;
     size_t current_offset;
+    bool header_sent;
 };
 
 typedef struct message_buffer_s message_buffer_t;
@@ -46,6 +47,7 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
 
 kb_message_writer_t *transport_uds_message_init(kb_transport_t *transport);
 int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *writer);
+int transport_uds_write_messages(kb_transport_t *transport);
 
 kb_message_t *transport_uds_message_receive(kb_transport_t *transport);
 int transport_uds_message_release(kb_transport_t *transport, kb_message_t *message);

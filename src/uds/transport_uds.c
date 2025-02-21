@@ -78,9 +78,53 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
     self->out_message_count++;
 }
 
+int transport_uds_write_messages(kb_transport_t *transport)
+{
+    kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
+
+    out_messages_t *out_message, *tmp;
+    ssize_t bytes_sent = 0;
+    DL_FOREACH_SAFE(self->out_messages, out_message, tmp)
+    {
+        if (!out_message->message.header_sent)
+        {
+            bytes_sent = send(self->sock_fd, &out_message->message.data_size, sizeof(out_message->message.data_size), 0);
+
+            if (bytes_sent == -1)
+            {
+                perror("send failed");
+                return -1;
+            }
+
+            out_message->message.header_sent = true;
+        }
+
+        bytes_sent = send(self->sock_fd, out_message->message.data, out_message->message.data_size, 0);
+
+        if (bytes_sent == -1)
+        {
+            perror("send failed");
+            return -1;
+        }
+
+        if (bytes_sent < out_message->message.data_size)
+        {
+            out_message->message.data += bytes_sent;
+            out_message->message.data_size -= bytes_sent;
+            return 0;
+        }
+
+        DL_DELETE(self->out_messages, out_message);
+        free(out_message->message.data);
+        free(out_message);
+        self->out_message_count--;
+    }
+
+    return 0;
+}
+
 kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
 {
-
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
 
     // Receiving a new message
@@ -89,11 +133,13 @@ kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
         uint64_t read_size = 0;
 
         // Check if we can read message size
-        if (recv(self->sock_fd, &read_size, sizeof(read_size), MSG_PEEK) != sizeof(uint64_t))
+        ssize_t bytes_received = recv(self->sock_fd, &read_size, sizeof(read_size), MSG_PEEK);
+        if (bytes_received != sizeof(uint64_t))
         {
             return NULL;
         }
 
+        // Note: read_size contains the size, but we need to pop size from the socket
         recv(self->sock_fd, &read_size, sizeof(read_size), 0);
         self->in_message.data_size = read_size;
         self->in_message.current_offset = 0;

@@ -18,7 +18,7 @@ void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport
     manager->base.handle_event = event_manager_uds_handle_event;
 }
 
-void event_manager_uds_wait_messages(kb_event_manager_uds_t *manager)
+void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 {
     struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
     io_uring_sqe_set_data(sqe, manager);
