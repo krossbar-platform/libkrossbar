@@ -17,6 +17,12 @@ void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport
     manager->ring = ring;
     manager->base.handle_event = event_manager_uds_handle_event;
 
+    manager->read_event.manager = manager;
+    manager->read_event.event_type = KB_UDS_EVENT_READABLE;
+
+    manager->write_event.manager = manager;
+    manager->write_event.event_type = KB_UDS_EVENT_WRITEABLE;
+
     event_manager_uds_wait_readable(manager);
 }
 
@@ -24,11 +30,7 @@ void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 {
     struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
 
-    kb_uds_event_t *event = malloc(sizeof(kb_uds_event_t));
-    event->manager = manager;
-    event->event_type = KB_UDS_EVENT_READABLE;
-
-    io_uring_sqe_set_data(sqe, event);
+    io_uring_sqe_set_data(sqe, &manager->read_event);
 
     io_uring_prep_recv(sqe, transport_uds_get_fd(&manager->transport->base), NULL, 0, 0);
 
@@ -43,11 +45,7 @@ void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
 {
     struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
 
-    kb_uds_event_t *event = malloc(sizeof(kb_uds_event_t));
-    event->manager = manager;
-    event->event_type = KB_UDS_EVENT_WRITEABLE;
-
-    io_uring_sqe_set_data(sqe, event);
+    io_uring_sqe_set_data(sqe, &manager->write_event);
 
     io_uring_prep_send(sqe, transport_uds_get_fd(&manager->transport->base), NULL, 0, 0);
 
@@ -63,10 +61,8 @@ kb_message_t *event_manager_uds_handle_event(struct io_uring_cqe *cqe)
     kb_uds_event_t *event = (kb_uds_event_t *)io_uring_cqe_get_data(cqe);
 
     kb_event_manager_uds_t *self = event->manager;
-    int event_type = event->event_type;
-    free(event);
 
-    if (event_type == KB_UDS_EVENT_READABLE)
+    if (event->event_type == KB_UDS_EVENT_READABLE)
     {
         event_manager_uds_wait_readable(self);
 
@@ -76,7 +72,7 @@ kb_message_t *event_manager_uds_handle_event(struct io_uring_cqe *cqe)
         }
         return transport_uds_message_receive(&self->transport->base);
     }
-    else if (event_type == KB_UDS_EVENT_WRITEABLE)
+    else if (event->event_type == KB_UDS_EVENT_WRITEABLE)
     {
         if (cqe->res == EINTR || cqe->res == EAGAIN)
         {

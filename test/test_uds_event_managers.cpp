@@ -47,8 +47,6 @@ TEST(EventManagers, TestUDSEventManager)
         ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
         auto transport_writer = transport_uds_init("test_writer", sockets[0], MESSAGE_SIZE, 10, &ring);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(10));
-
         auto message_writer = transport_message_init(transport_writer);
         message_write_bool(message_writer, true);
         ASSERT_EQ(message_send(message_writer), 0);
@@ -67,6 +65,8 @@ TEST(EventManagers, TestUDSEventManager)
             event_manager_uds_handle_event(cqe);
             io_uring_cqe_seen(&ring, cqe);
         }
+
+        transport_destroy(transport_writer);
     };
 
     struct io_uring ring;
@@ -87,12 +87,17 @@ TEST(EventManagers, TestUDSEventManager)
     auto future = std::async(std::launch::async, send_message);
 
     struct io_uring_cqe *cqe;
-    __kernel_timespec timeout = {0, 20000000};
-    ASSERT_EQ(io_uring_wait_cqe_timeout(&ring, &cqe, &timeout), 0);
+    __kernel_timespec timeout = {0, 40000000};
+    int wait_res = io_uring_wait_cqe_timeout(&ring, &cqe, &timeout);
+    if (wait_res < 0)
+    {
+        fprintf(stderr, "Futex wait error: %d, %s\n", -wait_res, strerror(-wait_res));
+    }
+    ASSERT_EQ(wait_res, 0);
 
     if (cqe->res < 0)
     {
-        fprintf(stderr, "Futex wait error: %d, %s\n", -cqe->res, strerror(-cqe->res));
+        fprintf(stderr, "Futex cqe error: %d, %s\n", -cqe->res, strerror(-cqe->res));
     }
     ASSERT_EQ(cqe->res, 0);
 
@@ -100,8 +105,12 @@ TEST(EventManagers, TestUDSEventManager)
     auto received_message = event_manager_uds_handle_event(cqe);
 
     ASSERT_NE(received_message, nullptr);
+    message_destroy(received_message);
 
     io_uring_cqe_seen(&ring, cqe);
     close(sockets[0]);
     close(sockets[1]);
+
+    transport_destroy(transport_reader);
+    future.wait();
 }

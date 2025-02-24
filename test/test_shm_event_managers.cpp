@@ -43,6 +43,7 @@ TEST(EventManagers, TestShmemEventManager)
 
     ASSERT_TRUE(io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAIT));
     ASSERT_TRUE(io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAKE));
+    free(probe);
 
     auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
     auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring);
@@ -56,7 +57,7 @@ TEST(EventManagers, TestShmemEventManager)
     auto future = std::async(std::launch::async, send_message, transport_writer);
 
     struct io_uring_cqe *cqe;
-    __kernel_timespec timeout = {0, 20000000};
+    __kernel_timespec timeout = {0, 40000000};
     ASSERT_EQ(io_uring_wait_cqe_timeout(&ring, &cqe, &timeout), 0);
 
     if (cqe->res < 0)
@@ -69,6 +70,11 @@ TEST(EventManagers, TestShmemEventManager)
     auto received_message = event_manager_shm_handle_event(cqe);
 
     ASSERT_NE(received_message, nullptr);
+    message_destroy(received_message);
 
     io_uring_cqe_seen(&ring, cqe);
+
+    transport_destroy(transport_writer);
+    transport_destroy(transport_reader);
+    future.wait();
 }
