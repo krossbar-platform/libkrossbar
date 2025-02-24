@@ -40,34 +40,51 @@ int set_nonblocking(int fd)
 
 TEST(EventManagers, TestUDSEventManager)
 {
-    auto send_message = [](kb_transport_t *transport)
+    int sockets[2];
+    auto send_message = [&sockets]()
     {
+        struct io_uring ring;
+        ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+        auto transport_writer = transport_uds_init("test_writer", sockets[0], MESSAGE_SIZE, 10, &ring);
+
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
-        auto message_writer = transport_message_init(transport);
+        auto message_writer = transport_message_init(transport_writer);
         message_write_bool(message_writer, true);
         ASSERT_EQ(message_send(message_writer), 0);
+
+        struct io_uring_cqe *cqe;
+        while (true)
+        {
+            auto res = io_uring_wait_cqe(&ring, &cqe);
+
+            if (res < 0 || cqe->res < 0)
+            {
+                printf("Error: %d, %s\n", -cqe->res, strerror(-cqe->res));
+                break;
+            };
+
+            event_manager_uds_handle_event(cqe);
+            io_uring_cqe_seen(&ring, cqe);
+        }
     };
 
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    int sockets[2];
     // Create socket pair
     ASSERT_NE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), -1);
     ASSERT_NE(set_nonblocking(sockets[0]), -1);
     ASSERT_NE(set_nonblocking(sockets[1]), -1);
 
-    auto transport_writer = transport_uds_init("test_writer", sockets[0], MESSAGE_SIZE, 10, &ring);
     auto transport_reader = transport_uds_init("test_reader", sockets[1], MESSAGE_SIZE, 10, &ring);
     auto reader_event_manager = &((kb_transport_uds_t *)transport_reader)->event_manager;
 
     auto message = transport_message_receive(transport_reader);
 
     ASSERT_EQ(message, nullptr);
-    event_manager_uds_wait_readable(reader_event_manager);
 
-    auto future = std::async(std::launch::async, send_message, transport_writer);
+    auto future = std::async(std::launch::async, send_message);
 
     struct io_uring_cqe *cqe;
     __kernel_timespec timeout = {0, 20000000};
@@ -80,9 +97,11 @@ TEST(EventManagers, TestUDSEventManager)
     ASSERT_EQ(cqe->res, 0);
 
     auto event_manager = (kb_event_manager_t *)io_uring_cqe_get_data(cqe);
-    auto received_message = event_manager_uds_handle_event(event_manager, cqe);
+    auto received_message = event_manager_uds_handle_event(cqe);
 
     ASSERT_NE(received_message, nullptr);
 
     io_uring_cqe_seen(&ring, cqe);
+    close(sockets[0]);
+    close(sockets[1]);
 }

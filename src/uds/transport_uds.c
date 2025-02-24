@@ -75,6 +75,11 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     DL_APPEND(self->out_messages, out_message);
 
+    if (self->out_message_count == 0)
+    {
+        event_manager_uds_wait_writeable(&self->event_manager);
+    }
+
     self->out_message_count++;
 }
 
@@ -111,7 +116,7 @@ int transport_uds_write_messages(kb_transport_t *transport)
         {
             out_message->message.data += bytes_sent;
             out_message->message.data_size -= bytes_sent;
-            return 0;
+            return self->out_message_count;
         }
 
         DL_DELETE(self->out_messages, out_message);
@@ -120,7 +125,7 @@ int transport_uds_write_messages(kb_transport_t *transport)
         self->out_message_count--;
     }
 
-    return 0;
+    return self->out_message_count;
 }
 
 kb_message_t *transport_uds_message_receive(kb_transport_t *transport)

@@ -71,9 +71,15 @@ void event_manager_shm_wait_messages(kb_event_manager_shm_t *manager)
     }
 }
 
-kb_message_t *event_manager_shm_handle_event(kb_event_manager_t *manager, struct io_uring_cqe *cqe)
+kb_message_t *event_manager_shm_handle_event(struct io_uring_cqe *cqe)
 {
-    kb_event_manager_shm_t *self = (kb_event_manager_shm_t *)manager;
+    kb_event_manager_shm_t *self = (kb_event_manager_shm_t *)io_uring_cqe_get_data(cqe);
+
+    if (cqe->res == EINTR || cqe->res == EAGAIN)
+    {
+        event_manager_shm_wait_messages(self);
+        return NULL;
+    }
 
     return transport_shm_message_receive(&self->transport->base);
 }

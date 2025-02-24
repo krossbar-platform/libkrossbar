@@ -66,7 +66,7 @@ TEST(EventManagers, TestShmemEventManager)
     ASSERT_EQ(cqe->res, 0);
 
     auto event_manager = (kb_event_manager_t*)io_uring_cqe_get_data(cqe);
-    auto received_message = event_manager_shm_handle_event(event_manager, cqe);
+    auto received_message = event_manager_shm_handle_event(cqe);
 
     ASSERT_NE(received_message, nullptr);
 
