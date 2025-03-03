@@ -1,0 +1,30 @@
+{
+    "name": "C/C++ Development",
+    "build": {
+        "dockerfile": "Dockerfile",
+        "context": ".."
+    },
+    "runArgs": [
+        "--cap-add=SYS_PTRACE",
+        "--security-opt",
+        "seccomp=unconfined"
+    ],
+    "customizations": {
+        "vscode": {
+            "extensions": [
+                "ms-vscode.cpptools",
+                "ms-vscode.cmake-tools",
+                "ms-vscode.cpptools-extension-pack",
+                "twxs.cmake",
+                "xaver.clang-format"
+            ],
+            "settings": {
+                "editor.formatOnSave": true,
+                "C_Cpp.default.cppStandard": "c++17",
+                "C_Cpp.default.cStandard": "c11",
+                "cmake.configureOnOpen": true
+            }
+        }
+    },
+    "remoteUser": "vscode"
+}
