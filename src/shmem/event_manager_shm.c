@@ -4,24 +4,40 @@
 #include <linux/futex.h>
 
 #include <liburing.h>
+#include <log4c.h>
 
 #include "transport_shm.h"
 
-void event_manager_shm_init(kb_event_manager_shm_t *manager, struct kb_transport_shm_s *transport, struct io_uring *ring)
+void event_manager_shm_init(kb_event_manager_shm_t *manager, struct kb_transport_shm_s *transport, struct io_uring *ring, log4c_category_t *logger)
 {
     assert(manager != NULL);
     assert(transport != NULL);
     assert(ring != NULL);
 
-    if (io_uring_major_version() < 2 ||
-        (io_uring_major_version() == 2 && io_uring_minor_version() < 6))
+    struct io_uring_probe *probe = io_uring_get_probe_ring(ring);
+    if (!probe)
     {
-        fprintf(stderr, "liburing version is too old\n");
-        exit(EXIT_FAILURE);
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to get probe: %s", strerror(errno));
+        return;
     }
+
+    if (!io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAIT))
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "IORING_OP_FUTEX_WAIT not supported");
+        return;
+    }
+
+    if (!io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAKE))
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "IORING_OP_FUTEX_WAKE not supported");
+        return;
+    }
+
+    free(probe);
 
     manager->transport = transport;
     manager->ring = ring;
+    manager->base.logger = logger;
     manager->base.handle_event = event_manager_shm_handle_event;
 }
 
@@ -36,7 +52,7 @@ void event_manager_shm_signal_new_message(kb_event_manager_shm_t *manager)
     int ret = io_uring_submit(manager->ring);
     if (ret < 0)
     {
-        fprintf(stderr, "io_uring futex wait submit error: %s\n", strerror(-ret));
+        log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wake submit error: %s", strerror(-ret));
     }
 
     // Wait for completion
@@ -45,11 +61,11 @@ void event_manager_shm_signal_new_message(kb_event_manager_shm_t *manager)
 
     if (ret < 0)
     {
-        fprintf(stderr, "io_uring futex wake error: %s\n", strerror(-ret));
+        log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wake error: %s", strerror(-ret));
     }
     else if (cqe->res < 0)
     {
-        fprintf(stderr, "io_uring_prep_futex_wake error: %s\n", strerror(-cqe->res));
+        log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring_prep_futex_wake error: %s", strerror(-cqe->res));
     }
 
     io_uring_cqe_seen(manager->ring, cqe);
@@ -67,7 +83,7 @@ void event_manager_shm_wait_messages(kb_event_manager_shm_t *manager)
     int ret = io_uring_submit(manager->ring);
     if (ret < 0)
     {
-        fprintf(stderr, "io_uring futex wait submit error: %s\n", strerror(-ret));
+        log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wait submit error: %s", strerror(-ret));
     }
 }
 

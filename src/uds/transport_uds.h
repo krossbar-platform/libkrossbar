@@ -43,7 +43,7 @@ struct kb_transport_uds_s
 
 typedef struct kb_transport_uds_s kb_transport_uds_t;
 
-kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages, struct io_uring *ring);
+kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages, struct io_uring *ring, log4c_category_t *logger);
 
 kb_message_writer_t *transport_uds_message_init(kb_transport_t *transport);
 int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *writer);

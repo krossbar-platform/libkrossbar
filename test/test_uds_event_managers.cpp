@@ -40,12 +40,15 @@ int set_nonblocking(int fd)
 
 TEST(EventManagers, TestUDSEventManager)
 {
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
     int sockets[2];
-    auto send_message = [&sockets]()
+    auto send_message = [&sockets, logger]()
     {
         struct io_uring ring;
         ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
-        auto transport_writer = transport_uds_init("test_writer", sockets[0], MESSAGE_SIZE, 10, &ring);
+        auto transport_writer = transport_uds_init("test_writer", sockets[0], MESSAGE_SIZE, 10, &ring, logger);
 
         auto message_writer = transport_message_init(transport_writer);
         message_write_bool(message_writer, true);
@@ -77,7 +80,7 @@ TEST(EventManagers, TestUDSEventManager)
     ASSERT_NE(set_nonblocking(sockets[0]), -1);
     ASSERT_NE(set_nonblocking(sockets[1]), -1);
 
-    auto transport_reader = transport_uds_init("test_reader", sockets[1], MESSAGE_SIZE, 10, &ring);
+    auto transport_reader = transport_uds_init("test_reader", sockets[1], MESSAGE_SIZE, 10, &ring, logger);
     auto reader_event_manager = &((kb_transport_uds_t *)transport_reader)->event_manager;
 
     auto message = transport_message_receive(transport_reader);

@@ -3,6 +3,7 @@
 
 #include <gtest/gtest.h>
 #include <liburing.h>
+#include <log4c.h>
 
 #include <unistd.h>
 #include <fcntl.h>
@@ -29,24 +30,14 @@ TEST(EventManagers, TestShmemEventManager)
         ASSERT_EQ(message_send(message_writer), 0);
     };
 
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    struct io_uring_probe *probe;
-
-    // Allocate and initialize probe
-    probe = io_uring_get_probe_ring(&ring);
-    if (!probe) {
-        fprintf(stderr, "Failed to get probe: %s\n", strerror(errno));
-        return;
-    }
-
-    ASSERT_TRUE(io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAIT));
-    ASSERT_TRUE(io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAKE));
-    free(probe);
-
-    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
-    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring);
+    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
+    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring, logger);
     auto reader_event_manager = &((kb_transport_shm_t *)transport_reader)->event_manager;
 
     auto message = transport_message_receive(transport_reader);

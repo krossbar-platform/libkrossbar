@@ -24,9 +24,10 @@
 //     return mpack_writer_error(&writer->writer);
 // }
 
-void message_writer_init(kb_message_writer_t *writer, void *data, size_t size)
+void message_writer_init(kb_message_writer_t *writer, void *data, size_t size, log4c_category_t *logger)
 {
     writer->data_writer = malloc(sizeof(mpack_writer_t));
+    writer->logger = logger;
     mpack_writer_init(writer->data_writer, data, size);
 }
 
@@ -44,7 +45,7 @@ int message_send(kb_message_writer_t *writer)
 
     if (mpack_writer_error(writer->data_writer) != mpack_ok)
     {
-        fprintf(stderr, "Error writing message: %s\n", mpack_error_to_string(mpack_writer_error(writer->data_writer)));
+        log4c_category_log(writer->logger, LOG4C_PRIORITY_ERROR, "Error writing message: %s\n", mpack_error_to_string(mpack_writer_error(writer->data_writer)));
         return 1;
     }
 

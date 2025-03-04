@@ -4,10 +4,13 @@
 #include <stdint.h>
 #include <stddef.h>
 
+#include <log4c/category.h>
+
 struct mpack_writer_t;
 
 struct kb_message_writer_s {
     struct mpack_writer_t *data_writer;
+    log4c_category_t *logger;
     int (*send)(struct kb_message_writer_s *transport);
 };
 
@@ -17,7 +20,7 @@ typedef struct kb_message_writer_s kb_message_writer_t;
 
 // inline kb_writer_error_t writer_error(kb_message_writer_t* writer);
 
-void message_writer_init(kb_message_writer_t *writer, void *data, size_t size);
+void message_writer_init(kb_message_writer_t *writer, void *data, size_t size, log4c_category_t *logger);
 
 /**
  * @brief Gets the current size of the written message

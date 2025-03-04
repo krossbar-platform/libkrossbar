@@ -13,6 +13,7 @@ set(THREADS_PREFER_PTHREAD_FLAG TRUE)
 find_package(Threads REQUIRED)
 
 pkg_search_module(URING REQUIRED liburing)
+pkg_search_module(LOG4C REQUIRED log4c)
 
 if(NOT CMAKE_USE_PTHREADS_INIT)
     message(FATAL_ERROR "Pthreads not found")
@@ -50,12 +51,14 @@ target_link_libraries(${PROJECT_NAME} PUBLIC
     mpack
     Threads::Threads
     ${URING_LIBRARIES}
+    ${LOG4C_LIBRARIES}
 )
 
 target_include_directories(${PROJECT_NAME} PRIVATE
     "include/"
     ${URING_INCLUDE_DIRS}
     ${UTHASH_INCLUDE_DIRS}
+    ${LOG4C_INCLUDE_DIRS}
 )
 
 # Add a custom target to run the executable

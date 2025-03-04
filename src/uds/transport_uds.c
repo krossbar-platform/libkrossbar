@@ -11,7 +11,7 @@
 #include "message_writer_uds.h"
 #include "message_uds.h"
 
-kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages, struct io_uring *ring)
+kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages, struct io_uring *ring, log4c_category_t *logger)
 {
     kb_transport_uds_t *transport = calloc(1, sizeof(kb_transport_uds_t));
     if (transport == NULL)
@@ -25,8 +25,9 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
     transport->max_buffered_messages = max_buffered_messages;
     transport->sock_fd = fd;
 
-    event_manager_uds_init(&transport->event_manager, transport, ring);
+    event_manager_uds_init(&transport->event_manager, transport, ring, logger);
 
+    transport->base.logger = logger;
     transport->base.message_init = transport_uds_message_init;
     transport->base.message_receive = transport_uds_message_receive;
     transport->base.get_fd = transport_uds_get_fd;

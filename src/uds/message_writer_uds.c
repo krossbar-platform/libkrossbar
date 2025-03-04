@@ -13,7 +13,7 @@ kb_message_writer_uds_t *message_writer_uds_init(kb_transport_uds_t *transport,
     kb_message_writer_uds_t *writer = malloc(sizeof(kb_message_writer_uds_t));
     writer->transport = transport;
 
-    message_writer_init(&writer->base, buffer, buffer_size);
+    message_writer_init(&writer->base, buffer, buffer_size, transport->base.logger);
     writer->base.send = message_writer_uds_send;
 
     return writer;

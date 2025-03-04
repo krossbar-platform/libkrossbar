@@ -4,10 +4,11 @@
 #include <linux/futex.h>
 
 #include <liburing.h>
+#include <log4c.h>
 
 #include "transport_uds.h"
 
-void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport_uds_s *transport, struct io_uring *ring)
+void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport_uds_s *transport, struct io_uring *ring, log4c_category_t *logger)
 {
     assert(manager != NULL);
     assert(transport != NULL);
@@ -15,6 +16,7 @@ void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport
 
     manager->transport = transport;
     manager->ring = ring;
+    manager->base.logger = logger;
     manager->base.handle_event = event_manager_uds_handle_event;
 
     manager->read_event.manager = manager;
@@ -37,7 +39,7 @@ void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
     int ret = io_uring_submit(manager->ring);
     if (ret < 0)
     {
-        fprintf(stderr, "io_uring futex wait submit error: %s\n", strerror(-ret));
+        log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wait submit error: %s", strerror(-ret));
     }
 }
 
@@ -52,7 +54,7 @@ void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
     int ret = io_uring_submit(manager->ring);
     if (ret < 0)
     {
-        fprintf(stderr, "io_uring futex wait submit error: %s\n", strerror(-ret));
+        log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wait submit error: %s", strerror(-ret));
     }
 }
 

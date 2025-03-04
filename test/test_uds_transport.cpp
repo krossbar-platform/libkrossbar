@@ -45,6 +45,9 @@ static void wait_readable(struct io_uring *ring, int fd)
 }
 
 TEST(Transport, TestUDSTransport) {
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
@@ -54,7 +57,7 @@ TEST(Transport, TestUDSTransport) {
     set_nonblocking(sockets[0]);
     set_nonblocking(sockets[1]);
 
-    auto transport_writer = transport_uds_init("test", sockets[0], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring);
+    auto transport_writer = transport_uds_init("test", sockets[0], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring, logger);
 
     auto message_writer = transport_message_init(transport_writer);
 
@@ -80,7 +83,7 @@ TEST(Transport, TestUDSTransport) {
     message_send(message_writer);
     ASSERT_EQ(transport_uds_write_messages(transport_writer), 0);
 
-    auto transport_reader = transport_uds_init("test_reader", sockets[1], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring);
+    auto transport_reader = transport_uds_init("test_reader", sockets[1], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring, logger);
 
     wait_readable(&ring, sockets[1]);
     auto message = transport_message_receive(transport_reader);
@@ -158,6 +161,9 @@ TEST(Transport, TestUDSTransport) {
 
 TEST(Transport, TestUDSTransportMultisend)
 {
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
@@ -167,7 +173,7 @@ TEST(Transport, TestUDSTransportMultisend)
     set_nonblocking(sockets[0]);
     set_nonblocking(sockets[1]);
 
-    auto transport_writer = transport_uds_init("test", sockets[0], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring);
+    auto transport_writer = transport_uds_init("test", sockets[0], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring, logger);
 
     auto message_writer = transport_message_init(transport_writer);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
@@ -183,7 +189,7 @@ TEST(Transport, TestUDSTransportMultisend)
 
     ASSERT_EQ(transport_uds_write_messages(transport_writer), 0);
 
-    auto transport_reader = transport_uds_init("test", sockets[1], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring);
+    auto transport_reader = transport_uds_init("test", sockets[1], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring, logger);
 
     wait_readable(&ring, sockets[1]);
 

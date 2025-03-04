@@ -2,6 +2,7 @@
 
 #include <gtest/gtest.h>
 #include <liburing.h>
+#include <log4c.h>
 
 extern "C" {
 #include <shmem/transport_shm.h>
@@ -20,7 +21,10 @@ TEST(Transport, TestShmemTransport) {
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
+    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto shm_transport_writer = (kb_transport_shm_t *)transport_writer;
     auto arena = &shm_transport_writer->arena;
 
@@ -55,7 +59,7 @@ TEST(Transport, TestShmemTransport) {
     ASSERT_EQ(arena->header->read_offset, 0);
     ASSERT_EQ(arena->header->num_messages, 1);
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring);
+    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring, logger);
     auto message = transport_message_receive(transport_reader);
 
     ASSERT_NE(message, nullptr);
@@ -142,7 +146,10 @@ TEST(Transport, TestShmemCycle)
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
+    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->arena;
 
     ASSERT_EQ(arena->header->write_offset, 0);
@@ -168,7 +175,7 @@ TEST(Transport, TestShmemCycle)
     message_writer = transport_message_init(&transport_writer->base);
     ASSERT_EQ(message_writer, nullptr);
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring);
+    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring, logger);
     auto message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
 
@@ -202,10 +209,13 @@ TEST(Transport, TestShmemReplace)
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
+    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->arena;
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring);
+    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring, logger);
 
     auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
@@ -295,10 +305,13 @@ TEST(Transport, TestShmemSingleReplace)
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring);
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
+
+    auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->arena;
 
-    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring);
+    auto transport_reader = transport_shm_connect("test_reader", transport_writer->shm_fd, &ring, logger);
 
     auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);

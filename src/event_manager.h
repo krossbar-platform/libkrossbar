@@ -1,10 +1,13 @@
 #pragma once
 
+#include <log4c/category.h>
+
 struct io_uring_cqe;
 struct kb_message_s;
 
 struct kb_event_manager_s
 {
+    log4c_category_t *logger;
     struct kb_message_s *(*handle_event)(struct io_uring_cqe *cqe);
 };
 

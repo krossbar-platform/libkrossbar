@@ -16,7 +16,7 @@ kb_message_writer_shm_t *message_writer_shm_init(kb_transport_shm_t *transport,
     writer->transport = transport;
     writer->header = header;
 
-    message_writer_init(&writer->base, buffer, header->size);
+    message_writer_init(&writer->base, buffer, header->size, transport->base.logger);
     writer->base.send = message_writer_shm_send;
 
     return writer;

@@ -23,7 +23,7 @@ enum ring_op_e
 
 typedef enum ring_op_e ring_op_t;
 
-kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size, struct io_uring *ring)
+kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size, struct io_uring *ring, log4c_category_t *logger)
 {
     assert(ring != NULL);
 
@@ -42,12 +42,13 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     transport->name = strdup(name);
     transport->max_message_size = max_message_size;
 
+    transport->base.logger = logger;
     transport->base.message_init = transport_shm_message_init;
     transport->base.message_receive = transport_shm_message_receive;
     transport->base.get_fd = transport_shm_get_fd;
     transport->base.destroy = transport_shm_destroy;
 
-    event_manager_shm_init(&transport->event_manager, transport, ring);
+    event_manager_shm_init(&transport->event_manager, transport, ring, logger);
 
     kb_arena_t *arena = &transport->arena;
 
@@ -105,7 +106,7 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     return (kb_transport_t *)transport;
 }
 
-kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring *ring)
+kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring *ring, log4c_category_t *logger)
 {
     kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
     if (transport == NULL)
@@ -123,7 +124,7 @@ kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring 
     transport->base.get_fd = transport_shm_get_fd;
     transport->base.destroy = transport_shm_destroy;
 
-    event_manager_shm_init(&transport->event_manager, transport, ring);
+    event_manager_shm_init(&transport->event_manager, transport, ring, logger);
 
     kb_arena_t *arena = &transport->arena;
 
