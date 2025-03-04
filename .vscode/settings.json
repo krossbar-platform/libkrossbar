@@ -89,7 +89,8 @@
         "cfenv": "cpp",
         "cinttypes": "cpp",
         "variant": "cpp",
-        "text_encoding": "cpp"
+        "text_encoding": "cpp",
+        "ios": "cpp"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",

@@ -40,7 +40,6 @@ struct kb_transport_shm_s
     kb_transport_t base;
     kb_arena_t arena;
     kb_event_manager_shm_t event_manager;
-    const char *name;
     int shm_fd;
     size_t max_message_size;
     kb_message_header_t *last_message;

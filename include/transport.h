@@ -7,6 +7,7 @@
 
 struct kb_transport_s {
     log4c_category_t *logger;
+    const char *name;
     kb_message_writer_t *(*message_init)(struct kb_transport_s *transport);
     kb_message_t *(*message_receive)(struct kb_transport_s *transport);
     int (*get_fd)(struct kb_transport_s *transport);

@@ -28,7 +28,6 @@ struct kb_transport_uds_s
 {
     kb_transport_t base;
     kb_event_manager_uds_t event_manager;
-    const char *name;
     int sock_fd;
     size_t max_message_size;
     // Out messages for writing into the socket

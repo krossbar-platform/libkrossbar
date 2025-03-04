@@ -31,7 +31,6 @@ TEST(EventManagers, TestShmemEventManager)
     };
 
     auto logger = log4c_category_get("libkrossbar.test");
-    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
 
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
@@ -53,7 +52,7 @@ TEST(EventManagers, TestShmemEventManager)
 
     if (cqe->res < 0)
     {
-        fprintf(stderr, "Futex wait error: %d, %s\n", -cqe->res, strerror(-cqe->res));
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Futex cqe error: %d, %s\n", -cqe->res, strerror(-cqe->res));
     }
     ASSERT_EQ(cqe->res, 0);
 

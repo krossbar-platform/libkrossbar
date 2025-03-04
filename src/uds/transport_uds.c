@@ -16,17 +16,17 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
     kb_transport_uds_t *transport = calloc(1, sizeof(kb_transport_uds_t));
     if (transport == NULL)
     {
-        perror("calloc failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
         return NULL;
     }
 
-    transport->name = strdup(name);
     transport->max_message_size = max_message_size;
     transport->max_buffered_messages = max_buffered_messages;
     transport->sock_fd = fd;
 
     event_manager_uds_init(&transport->event_manager, transport, ring, logger);
 
+    transport->base.name = strdup(name);
     transport->base.logger = logger;
     transport->base.message_init = transport_uds_message_init;
     transport->base.message_receive = transport_uds_message_receive;
@@ -35,6 +35,8 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
 
     int flags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
+
+    log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "UDS transport `%s` initialized", name);
 
     return (kb_transport_t *)transport;
 }
@@ -51,7 +53,7 @@ kb_message_writer_t *transport_uds_message_init(kb_transport_t *transport)
     char *buffer = malloc(self->max_message_size);
     if (!buffer)
     {
-        perror("malloc failed");
+        log4c_category_log(transport->logger, LOG4C_PRIORITY_ERROR, "malloc failed");
         return NULL;
     }
 
@@ -82,6 +84,7 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
     }
 
     self->out_message_count++;
+    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "New uds message in `%s`: %zu messages in the buffer", transport->name, self->out_message_count);
 }
 
 int transport_uds_write_messages(kb_transport_t *transport)
@@ -98,7 +101,7 @@ int transport_uds_write_messages(kb_transport_t *transport)
 
             if (bytes_sent == -1)
             {
-                perror("send failed");
+                log4c_category_log(transport->logger, LOG4C_PRIORITY_ERROR, "send failed: %s", strerror(errno));
                 return -1;
             }
 
@@ -109,7 +112,7 @@ int transport_uds_write_messages(kb_transport_t *transport)
 
         if (bytes_sent == -1)
         {
-            perror("send failed");
+            log4c_category_log(transport->logger, LOG4C_PRIORITY_ERROR, "send failed: %s", strerror(errno));
             return -1;
         }
 
@@ -124,6 +127,8 @@ int transport_uds_write_messages(kb_transport_t *transport)
         free(out_message->message.data);
         free(out_message);
         self->out_message_count--;
+
+        log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Message send from `%s`: %zu messages in the buffer", transport->name, self->out_message_count);
     }
 
     return self->out_message_count;
@@ -163,6 +168,8 @@ kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
 
         if (self->in_message.current_offset == self->in_message.data_size)
         {
+            log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Incoming message for `%s`", transport->name);
+
             kb_message_uds_t *message = message_uds_init(self, self->in_message.data, self->in_message.data_size);
             return &message->base;
         }
@@ -191,6 +198,8 @@ int transport_uds_get_fd(kb_transport_t *transport)
 
 void transport_uds_destroy(kb_transport_t *transport)
 {
+    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "UDS transport `%s` destoryed", transport->name);
+
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
 
     if (self->sock_fd != 0)
@@ -198,9 +207,9 @@ void transport_uds_destroy(kb_transport_t *transport)
         close(self->sock_fd);
     }
 
-    if (self->name != NULL)
+    if (transport->name != NULL)
     {
-        free((char *)self->name);
+        free((char *)transport->name);
     }
 
     if (self->out_messages != NULL)

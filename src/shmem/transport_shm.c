@@ -29,19 +29,20 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
 
     if (buffer_size < max_message_size)
     {
-        perror("Buffer size is smaller than message size");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Buffer size is smaller than message size: %s", strerror(errno));
         return NULL;
     }
 
     kb_transport_shm_t* transport = calloc(1, sizeof(kb_transport_shm_t));
-    if (transport == NULL) {
-        perror("calloc failed");
+    if (transport == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
         return NULL;
     }
 
-    transport->name = strdup(name);
     transport->max_message_size = max_message_size;
 
+    transport->base.name = strdup(name);
     transport->base.logger = logger;
     transport->base.message_init = transport_shm_message_init;
     transport->base.message_receive = transport_shm_message_receive;
@@ -55,9 +56,9 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
 
     // Create shmem file descriptor
-    transport->shm_fd = memfd_create(transport->name, 0);
+    transport->shm_fd = memfd_create(transport->base.name, 0);
     if (transport->shm_fd == -1) {
-        perror("memfd_create failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "memfd_create failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
@@ -65,7 +66,7 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     // Set the size
     if (ftruncate(transport->shm_fd, alloc_size) == -1)
     {
-        perror("ftruncate failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "ftruncate failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
@@ -75,7 +76,7 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
                           MAP_SHARED, transport->shm_fd, 0);
     if (map_addr == MAP_FAILED)
     {
-        perror("mmap failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "mmap failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
@@ -91,17 +92,19 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
 
     if (sem_init(&header->write_sem, 1, 1) == -1)
     {
-        perror("sem_init failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
 
     if (sem_init(&header->read_sem, 1, 1) == -1)
     {
-        perror("sem_init failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
+
+    log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` initialized", name);
 
     return (kb_transport_t *)transport;
 }
@@ -111,14 +114,15 @@ kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring 
     kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
     if (transport == NULL)
     {
-        perror("calloc failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
         return NULL;
     }
 
-    transport->name = strdup(name);
+    transport->base.name = strdup(name);
     transport->max_message_size = 0;
     transport->shm_fd = fd;
 
+    transport->base.logger = logger;
     transport->base.message_init = transport_shm_message_init;
     transport->base.message_receive = transport_shm_message_receive;
     transport->base.get_fd = transport_shm_get_fd;
@@ -132,7 +136,7 @@ kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring 
     void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map_addr == MAP_FAILED)
     {
-        perror("Header mmap failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Header mmap failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
@@ -145,7 +149,7 @@ kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring 
     map_addr = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
     if (map_addr == MAP_FAILED)
     {
-        perror("mmap failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "mmap failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
@@ -153,6 +157,8 @@ kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring 
     arena->addr = map_addr + sizeof(kb_arena_header_t);
     arena->header = (kb_arena_header_t *)map_addr;
     kb_arena_header_t *header = arena->header;
+
+    log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` connected", name);
 
     return (kb_transport_t*)transport;
 }
@@ -239,10 +245,11 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     // Move the write offset
     arena_header->write_offset += message_header->size + sizeof(kb_message_header_t);
 
-    atomic_fetch_add(&arena_header->num_messages, 1);
+    uint32_t num_mesages = atomic_fetch_add(&arena_header->num_messages, 1);
 
     // Allow writing new messages
     sem_post(&arena_header->write_sem);
+    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "New shmem message in `%s`: %d messages in the buffer", transport->name, num_mesages + 1);
 
     event_manager_shm_signal_new_message(&self->event_manager);
 }
@@ -294,9 +301,10 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
     }
     sem_post(&arena_header->write_sem);
 
-    atomic_fetch_sub(&arena_header->num_messages, 1);
+    uint32_t num_mesages = atomic_fetch_sub(&arena_header->num_messages, 1);
 
     sem_post(&arena_header->read_sem);
+    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Removed shmem message from `%s`: %d messages in the buffer", transport->name, num_mesages - 1);
 
     return 0;
 }
@@ -310,10 +318,13 @@ int transport_shm_get_fd(kb_transport_t *transport)
 
 void transport_shm_destroy(kb_transport_t *transport)
 {
+    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` destroyed", transport->name);
+
     kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
 
-    if (self->name != NULL) {
-        free((void*)self->name);
+    if (transport->name != NULL)
+    {
+        free((void *)transport->name);
     }
 
     kb_arena_t *arena = &self->arena;

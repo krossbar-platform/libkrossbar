@@ -17,7 +17,8 @@ RUN apt-get -y install \
     locales \
     ssh \
     liburing-dev \
-    libgtest-dev
+    libgtest-dev \
+    liblog4c-dev
 
 # Cleanup
 RUN apt-get autoremove -y

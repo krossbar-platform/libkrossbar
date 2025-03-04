@@ -41,7 +41,6 @@ int set_nonblocking(int fd)
 TEST(EventManagers, TestUDSEventManager)
 {
     auto logger = log4c_category_get("libkrossbar.test");
-    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
 
     int sockets[2];
     auto send_message = [&sockets, logger]()
@@ -61,7 +60,7 @@ TEST(EventManagers, TestUDSEventManager)
 
             if (res < 0 || cqe->res < 0)
             {
-                printf("Error: %d, %s\n", -cqe->res, strerror(-cqe->res));
+                log4c_category_log(logger, LOG4C_PRIORITY_WARN, "Error: %d, %s\n", -cqe->res, strerror(-cqe->res));
                 break;
             };
 
@@ -94,13 +93,13 @@ TEST(EventManagers, TestUDSEventManager)
     int wait_res = io_uring_wait_cqe_timeout(&ring, &cqe, &timeout);
     if (wait_res < 0)
     {
-        fprintf(stderr, "Futex wait error: %d, %s\n", -wait_res, strerror(-wait_res));
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Futex wait error: %d, %s\n", -wait_res, strerror(-wait_res));
     }
     ASSERT_EQ(wait_res, 0);
 
     if (cqe->res < 0)
     {
-        fprintf(stderr, "Futex cqe error: %d, %s\n", -cqe->res, strerror(-cqe->res));
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Futex cqe error: %d, %s\n", -cqe->res, strerror(-cqe->res));
     }
     ASSERT_EQ(cqe->res, 0);
 

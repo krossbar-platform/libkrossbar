@@ -22,7 +22,6 @@ TEST(Transport, TestShmemTransport) {
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
     auto logger = log4c_category_get("libkrossbar.test");
-    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
 
     auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto shm_transport_writer = (kb_transport_shm_t *)transport_writer;
@@ -147,7 +146,6 @@ TEST(Transport, TestShmemCycle)
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
     auto logger = log4c_category_get("libkrossbar.test");
-    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
 
     auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->arena;
@@ -210,7 +208,6 @@ TEST(Transport, TestShmemReplace)
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
     auto logger = log4c_category_get("libkrossbar.test");
-    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
 
     auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->arena;
@@ -306,7 +303,6 @@ TEST(Transport, TestShmemSingleReplace)
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
     auto logger = log4c_category_get("libkrossbar.test");
-    log4c_category_set_priority(logger, LOG4C_PRIORITY_DEBUG);
 
     auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->arena;
