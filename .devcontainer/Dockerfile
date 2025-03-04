@@ -8,6 +8,7 @@ RUN apt-get -y install \
     cmake \
     ninja-build \
     gdb \
+    git \
     pkg-config \
     make \
     ccache \
