@@ -11,8 +11,15 @@
 #include "message_writer_uds.h"
 #include "message_uds.h"
 
-kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages, struct io_uring *ring, log4c_category_t *logger)
+static uint8_t MAGIC = 0x42;
+
+kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_size, size_t max_buffered_messages,
+                                   struct io_uring *ring, log4c_category_t *logger)
 {
+    assert(name != NULL);
+    assert(ring != NULL);
+    assert(logger != NULL);
+
     kb_transport_uds_t *transport = calloc(1, sizeof(kb_transport_uds_t));
     if (transport == NULL)
     {
@@ -30,7 +37,6 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
     transport->base.logger = logger;
     transport->base.message_init = transport_uds_message_init;
     transport->base.message_receive = transport_uds_message_receive;
-    transport->base.get_fd = transport_uds_get_fd;
     transport->base.destroy = transport_uds_destroy;
 
     int flags = fcntl(fd, F_GETFL);
@@ -93,11 +99,13 @@ int transport_uds_write_messages(kb_transport_t *transport)
 
     out_messages_t *out_message, *tmp;
     ssize_t bytes_sent = 0;
+
     DL_FOREACH_SAFE(self->out_messages, out_message, tmp)
     {
         if (!out_message->message.header_sent)
         {
-            bytes_sent = send(self->sock_fd, &out_message->message.data_size, sizeof(out_message->message.data_size), 0);
+            message_header_t header = {.magic = MAGIC, .data_len = out_message->message.data_size};
+            bytes_sent = send(self->sock_fd, &header, sizeof(header), 0);
 
             if (bytes_sent == -1)
             {
@@ -141,20 +149,27 @@ kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
     // Receiving a new message
     if (self->in_message.data == NULL)
     {
-        uint64_t read_size = 0;
+        message_header_t header;
 
         // Check if we can read message size
-        ssize_t bytes_received = recv(self->sock_fd, &read_size, sizeof(read_size), MSG_PEEK);
-        if (bytes_received != sizeof(uint64_t))
+        ssize_t bytes_received = recv(self->sock_fd, &header, sizeof(header), MSG_PEEK);
+        if (bytes_received != sizeof(header))
         {
             return NULL;
         }
 
         // Note: read_size contains the size, but we need to pop size from the socket
-        recv(self->sock_fd, &read_size, sizeof(read_size), 0);
-        self->in_message.data_size = read_size;
+        recv(self->sock_fd, &header, sizeof(header), 0);
+
+        if (header.magic != MAGIC)
+        {
+            log4c_category_log(transport->logger, LOG4C_PRIORITY_ERROR, "Invalid magic number: %d", header.magic);
+            return NULL;
+        }
+
+        self->in_message.data_size = header.data_len;
         self->in_message.current_offset = 0;
-        self->in_message.data = malloc(read_size);
+        self->in_message.data = malloc(header.data_len);
     }
 
     ssize_t bytes_received = recv(self->sock_fd,
@@ -187,13 +202,6 @@ int transport_uds_message_release(kb_transport_t *transport, kb_message_t *messa
     self->in_message.data_size = 0;
 
     return 0;
-}
-
-int transport_uds_get_fd(kb_transport_t *transport)
-{
-    kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
-
-    return self->sock_fd;
 }
 
 void transport_uds_destroy(kb_transport_t *transport)

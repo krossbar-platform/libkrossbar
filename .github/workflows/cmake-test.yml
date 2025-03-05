@@ -22,7 +22,7 @@ jobs:
     steps:
     - uses: actions/checkout@v4
     - name: Install dependencies
-      run: sudo apt install -y liburing-dev
+      run: sudo apt install -y liburing-dev liblog4c-dev
 
 
     - name: Configure CMake

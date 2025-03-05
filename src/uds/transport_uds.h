@@ -5,6 +5,16 @@
 
 struct io_uring;
 
+#pragma pack(push, 1)
+struct message_header_s
+{
+    uint8_t magic;
+    uint32_t data_len;
+};
+#pragma pack(pop)
+
+typedef struct message_header_s message_header_t;
+
 struct message_buffer_s
 {
     char *data;
@@ -51,5 +61,4 @@ int transport_uds_write_messages(kb_transport_t *transport);
 kb_message_t *transport_uds_message_receive(kb_transport_t *transport);
 int transport_uds_message_release(kb_transport_t *transport, kb_message_t *message);
 
-int transport_uds_get_fd(kb_transport_t *transport);
 void transport_uds_destroy(kb_transport_t *transport);

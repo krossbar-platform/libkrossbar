@@ -31,12 +31,14 @@ TEST(EventManagers, TestShmemEventManager)
     };
 
     auto logger = log4c_category_get("libkrossbar.test");
+    auto map_fd_0 = transport_shm_create_mapping("map0", ARENA_SIZE, logger);
+    auto map_fd_1 = transport_shm_create_mapping("map1", ARENA_SIZE, logger);
 
     struct io_uring ring;
     ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
 
-    auto transport_writer = transport_shm_init("test", ARENA_SIZE, MESSAGE_SIZE, &ring, logger);
-    auto transport_reader = transport_shm_connect("test_reader", transport_shm_get_fd(transport_writer), &ring, logger);
+    auto transport_writer = transport_shm_init("test", map_fd_0, map_fd_1, MESSAGE_SIZE, &ring, logger);
+    auto transport_reader = transport_shm_init("test", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
     auto reader_event_manager = &((kb_transport_shm_t *)transport_reader)->event_manager;
 
     auto message = transport_message_receive(transport_reader);

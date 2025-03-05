@@ -23,17 +23,78 @@ enum ring_op_e
 
 typedef enum ring_op_e ring_op_t;
 
-kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t max_message_size, struct io_uring *ring, log4c_category_t *logger)
+int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_category_t *logger)
 {
-    assert(ring != NULL);
-
-    if (buffer_size < max_message_size)
+    // Create shmem file descriptor
+    int result_fd = memfd_create(name, 0);
+    if (result_fd == -1)
     {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Buffer size is smaller than message size: %s", strerror(errno));
-        return NULL;
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "memfd_create failed: %s", strerror(errno));
+        return -1;
     }
 
-    kb_transport_shm_t* transport = calloc(1, sizeof(kb_transport_shm_t));
+    size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
+    // Set the size
+    if (ftruncate(result_fd, alloc_size) == -1)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "ftruncate failed: %s", strerror(errno));
+        return -1;
+    }
+
+    // Map the shared memory to set the header up
+    void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ | PROT_WRITE,
+                          MAP_SHARED, result_fd, 0);
+    if (map_addr == MAP_FAILED)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "mmap failed: %s", strerror(errno));
+        close(result_fd);
+        return -1;
+    }
+
+    kb_arena_header_t *arena_header = map_addr;
+    arena_header->write_offset = 0;
+    arena_header->read_offset = 0;
+    arena_header->size = buffer_size;
+    atomic_init(&arena_header->num_messages, 0);
+
+    if (sem_init(&arena_header->write_sem, 1, 1) == -1)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
+        munmap(map_addr, sizeof(kb_arena_header_t));
+        close(result_fd);
+        return -1;
+    }
+
+    if (sem_init(&arena_header->read_sem, 1, 1) == -1)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
+        munmap(map_addr, sizeof(kb_arena_header_t));
+        close(result_fd);
+        return -1;
+    }
+
+    return result_fd;
+}
+
+size_t transport_shm_get_mapping_size(int map_fd)
+{
+    struct stat stat;
+    if (fstat(map_fd, &stat) == -1)
+    {
+        return 0;
+    }
+
+    return stat.st_size - sizeof(kb_arena_header_t);
+}
+
+kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
+                                   size_t max_message_size, struct io_uring *ring, log4c_category_t *logger)
+{
+    assert(name != NULL);
+    assert(ring != NULL);
+    assert(logger != NULL);
+
+    kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
     if (transport == NULL)
     {
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
@@ -46,128 +107,59 @@ kb_transport_t *transport_shm_init(const char *name, size_t buffer_size, size_t 
     transport->base.logger = logger;
     transport->base.message_init = transport_shm_message_init;
     transport->base.message_receive = transport_shm_message_receive;
-    transport->base.get_fd = transport_shm_get_fd;
     transport->base.destroy = transport_shm_destroy;
 
     event_manager_shm_init(&transport->event_manager, transport, ring, logger);
 
-    kb_arena_t *arena = &transport->arena;
-
-    size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
-
-    // Create shmem file descriptor
-    transport->shm_fd = memfd_create(transport->base.name, 0);
-    if (transport->shm_fd == -1) {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "memfd_create failed: %s", strerror(errno));
-        transport_shm_destroy(&transport->base);
-        return NULL;
-    }
-
-    // Set the size
-    if (ftruncate(transport->shm_fd, alloc_size) == -1)
+    // Map read shared memory
+    size_t read_mapping_size = transport_shm_get_mapping_size(read_fd);
+    void *map_read_addr = mmap(NULL, read_mapping_size, PROT_READ | PROT_WRITE,
+                               MAP_SHARED, read_fd, 0);
+    if (map_read_addr == MAP_FAILED)
     {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "ftruncate failed: %s", strerror(errno));
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Read mmap failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
 
-    // Map the shared memory
-    void *map_addr = mmap(NULL, alloc_size, PROT_READ | PROT_WRITE,
-                          MAP_SHARED, transport->shm_fd, 0);
-    if (map_addr == MAP_FAILED)
+    transport->read_arena.addr = map_read_addr + sizeof(kb_arena_header_t);
+    transport->read_arena.header = (kb_arena_header_t *)map_read_addr;
+    transport->read_arena.shm_fd = read_fd;
+
+    // Map write shared memory
+    size_t write_mapping_size = transport_shm_get_mapping_size(write_fd);
+
+    if (write_mapping_size < max_message_size)
     {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "mmap failed: %s", strerror(errno));
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Write mapping size is smaller than max message size: %zu < %zu",
+                           write_mapping_size, max_message_size);
         transport_shm_destroy(&transport->base);
         return NULL;
     }
 
-    arena->addr = map_addr + sizeof(kb_arena_header_t);
-    arena->header = (kb_arena_header_t *)map_addr;
-    kb_arena_header_t *header = arena->header;
-
-    header->write_offset = 0;
-    header->read_offset = 0;
-    header->size = buffer_size;
-    atomic_init(&header->num_messages, 0);
-
-    if (sem_init(&header->write_sem, 1, 1) == -1)
+    void *map_write_addr = mmap(NULL, write_mapping_size, PROT_READ | PROT_WRITE,
+                                MAP_SHARED, write_fd, 0);
+    if (map_write_addr == MAP_FAILED)
     {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Write mmap failed: %s", strerror(errno));
         transport_shm_destroy(&transport->base);
         return NULL;
     }
 
-    if (sem_init(&header->read_sem, 1, 1) == -1)
-    {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
-        transport_shm_destroy(&transport->base);
-        return NULL;
-    }
+    transport->write_arena.addr = map_write_addr + sizeof(kb_arena_header_t);
+    transport->write_arena.header = (kb_arena_header_t *)map_write_addr;
+    transport->write_arena.shm_fd = write_fd;
 
     log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` initialized", name);
 
     return (kb_transport_t *)transport;
 }
 
-kb_transport_t *transport_shm_connect(const char *name, int fd, struct io_uring *ring, log4c_category_t *logger)
-{
-    kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
-    if (transport == NULL)
-    {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
-        return NULL;
-    }
-
-    transport->base.name = strdup(name);
-    transport->max_message_size = 0;
-    transport->shm_fd = fd;
-
-    transport->base.logger = logger;
-    transport->base.message_init = transport_shm_message_init;
-    transport->base.message_receive = transport_shm_message_receive;
-    transport->base.get_fd = transport_shm_get_fd;
-    transport->base.destroy = transport_shm_destroy;
-
-    event_manager_shm_init(&transport->event_manager, transport, ring, logger);
-
-    kb_arena_t *arena = &transport->arena;
-
-    // Read mapping size
-    void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map_addr == MAP_FAILED)
-    {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Header mmap failed: %s", strerror(errno));
-        transport_shm_destroy(&transport->base);
-        return NULL;
-    }
-
-    kb_arena_header_t *arena_header = (kb_arena_header_t *)map_addr;
-    size_t mmap_size = arena_header->size + sizeof(kb_arena_header_t);
-    munmap(map_addr, sizeof(kb_arena_header_t));
-
-    // Map the arena. Now for real
-    map_addr = mmap(NULL, mmap_size, PROT_READ | PROT_WRITE, MAP_SHARED, fd, 0);
-    if (map_addr == MAP_FAILED)
-    {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "mmap failed: %s", strerror(errno));
-        transport_shm_destroy(&transport->base);
-        return NULL;
-    }
-
-    arena->addr = map_addr + sizeof(kb_arena_header_t);
-    arena->header = (kb_arena_header_t *)map_addr;
-    kb_arena_header_t *header = arena->header;
-
-    log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` connected", name);
-
-    return (kb_transport_t*)transport;
-}
-
 kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
 {
     kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
 
-    kb_arena_t *arena = &self->arena;
+    kb_arena_t *arena = &self->write_arena;
     kb_arena_header_t *arena_header = arena->header;
 
     size_t memory_needed = self->max_message_size + sizeof(kb_message_header_t);
@@ -227,7 +219,7 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
     kb_message_writer_shm_t *shm_writer = (kb_message_writer_shm_t*)writer;
 
-    kb_arena_t *arena = &self->arena;
+    kb_arena_t *arena = &self->write_arena;
     kb_arena_header_t *arena_header = arena->header;
 
     // Shrink the memory region to needed size
@@ -257,7 +249,7 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
 {
     kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
-    kb_arena_t *arena = &self->arena;
+    kb_arena_t *arena = &self->read_arena;
     kb_arena_header_t *arena_header = arena->header;
 
     if (atomic_load(&arena_header->num_messages) == 0)
@@ -281,7 +273,7 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
 int transport_shm_message_release(kb_transport_t *transport, kb_message_t *message)
 {
     kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
-    kb_arena_t *arena = &self->arena;
+    kb_arena_t *arena = &self->read_arena;
     kb_arena_header_t *arena_header = arena->header;
 
     kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
@@ -309,13 +301,6 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
     return 0;
 }
 
-int transport_shm_get_fd(kb_transport_t *transport)
-{
-    kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
-
-    return self->shm_fd;
-}
-
 void transport_shm_destroy(kb_transport_t *transport)
 {
     log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` destroyed", transport->name);
@@ -327,13 +312,16 @@ void transport_shm_destroy(kb_transport_t *transport)
         free((void *)transport->name);
     }
 
-    kb_arena_t *arena = &self->arena;
-    if (arena->addr != NULL) {
-        munmap(arena->addr, arena->header->size + sizeof(kb_arena_header_t));
+    if (self->read_arena.addr != NULL)
+    {
+        munmap(self->read_arena.addr, self->read_arena.header->size + sizeof(kb_arena_header_t));
+        close(self->read_arena.shm_fd);
     }
 
-    if (self->shm_fd != 0) {
-        close(self->shm_fd);
+    if (self->write_arena.addr != NULL)
+    {
+        munmap(self->write_arena.addr, self->write_arena.header->size + sizeof(kb_arena_header_t));
+        close(self->write_arena.shm_fd);
     }
 
     free(transport);

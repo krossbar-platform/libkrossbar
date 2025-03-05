@@ -11,7 +11,8 @@ typedef mpack_tag_t kb_message_tag_t;
 
 struct mpack_reader_t;
 
-struct kb_message_s {
+struct kb_message_s
+{
     struct mpack_reader_t *data_reader;
     int (*destroy)(struct kb_message_s *message);
 };

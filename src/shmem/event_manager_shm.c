@@ -45,7 +45,7 @@ void event_manager_shm_signal_new_message(kb_event_manager_shm_t *manager)
 {
     struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
 
-    kb_arena_header_t *header = manager->transport->arena.header;
+    kb_arena_header_t *header = manager->transport->write_arena.header;
 
     io_uring_prep_futex_wake(sqe, &header->num_messages, 1, FUTEX_BITSET_MATCH_ANY, FUTEX2_SIZE_U32, 0);
 
@@ -76,7 +76,7 @@ void event_manager_shm_wait_messages(kb_event_manager_shm_t *manager)
     struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
     io_uring_sqe_set_data(sqe, manager);
 
-    kb_arena_header_t *header = manager->transport->arena.header;
+    kb_arena_header_t *header = manager->transport->read_arena.header;
 
     io_uring_prep_futex_wait(sqe, &header->num_messages, 0, FUTEX_BITSET_MATCH_ANY, FUTEX2_SIZE_U32, 0);
 

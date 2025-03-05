@@ -6,9 +6,12 @@
 
 #include <log4c/category.h>
 
+#include "error.h"
+
 struct mpack_writer_t;
 
-struct kb_message_writer_s {
+struct kb_message_writer_s
+{
     struct mpack_writer_t *data_writer;
     log4c_category_t *logger;
     int (*send)(struct kb_message_writer_s *transport);
@@ -40,47 +43,47 @@ int message_send(kb_message_writer_t *writer);
  * @brief Writes a nil/NULL value to the writer
  * @param writer The message writer
  */
-void message_write_nil(kb_message_writer_t* writer);
+kb_message_error_t message_write_nil(kb_message_writer_t *writer);
 
 /**
  * @brief Writes a boolean value to the writer
  * @param writer The message writer
  * @param value The boolean value to write
  */
-void message_write_bool(kb_message_writer_t* writer, bool value);
+kb_message_error_t message_write_bool(kb_message_writer_t *writer, bool value);
 
-void message_write_i8(kb_message_writer_t *writer, int8_t value);
-void message_write_i16(kb_message_writer_t *writer, int16_t value);
-void message_write_i32(kb_message_writer_t *writer, int32_t value);
-void message_write_i64(kb_message_writer_t *writer, int64_t value);
-void message_write_int(kb_message_writer_t *writer, int64_t value);
-void message_write_u8(kb_message_writer_t *writer, uint8_t value);
-void message_write_u16(kb_message_writer_t *writer, uint16_t value);
-void message_write_u32(kb_message_writer_t *writer, uint32_t value);
-void message_write_u64(kb_message_writer_t *writer, uint64_t value);
-void message_write_uint(kb_message_writer_t *writer, uint64_t value);
-void message_write_float(kb_message_writer_t *writer, float value);
+kb_message_error_t message_write_i8(kb_message_writer_t *writer, int8_t value);
+kb_message_error_t message_write_i16(kb_message_writer_t *writer, int16_t value);
+kb_message_error_t message_write_i32(kb_message_writer_t *writer, int32_t value);
+kb_message_error_t message_write_i64(kb_message_writer_t *writer, int64_t value);
+kb_message_error_t message_write_int(kb_message_writer_t *writer, int64_t value);
+kb_message_error_t message_write_u8(kb_message_writer_t *writer, uint8_t value);
+kb_message_error_t message_write_u16(kb_message_writer_t *writer, uint16_t value);
+kb_message_error_t message_write_u32(kb_message_writer_t *writer, uint32_t value);
+kb_message_error_t message_write_u64(kb_message_writer_t *writer, uint64_t value);
+kb_message_error_t message_write_uint(kb_message_writer_t *writer, uint64_t value);
+kb_message_error_t message_write_float(kb_message_writer_t *writer, float value);
 
 /**
  * @brief Writes a double-precision floating point value to the writer
  * @param writer The message writer
  * @param value The double value to write
  */
-void message_write_double(kb_message_writer_t* writer, double value);
+kb_message_error_t message_write_double(kb_message_writer_t *writer, double value);
 
 /**
  * @brief Writes a null-terminated string to the writer
  * @param writer The message writer
  * @param str The null-terminated string to write
  */
-void message_write_cstr(kb_message_writer_t* writer, const char* str);
+kb_message_error_t message_write_cstr(kb_message_writer_t *writer, const char *str);
 
 /**
  * @brief Writes a null-terminated string to the writer, or nil if the string is NULL
  * @param writer The message writer
  * @param str The null-terminated string to write, or NULL to write nil
  */
-void message_write_cstr_or_nil(kb_message_writer_t* writer, const char* str);
+kb_message_error_t message_write_cstr_or_nil(kb_message_writer_t *writer, const char *str);
 
 /**
  * @brief Writes a string with explicit length to the writer
@@ -88,7 +91,7 @@ void message_write_cstr_or_nil(kb_message_writer_t* writer, const char* str);
  * @param str The string data to write
  * @param length The number of bytes to write
  */
-void message_write_str(kb_message_writer_t* writer, const char* str, uint32_t length);
+kb_message_error_t message_write_str(kb_message_writer_t *writer, const char *str, uint32_t length);
 
 /**
  * @brief Writes a UTF-8 string with explicit length to the writer
@@ -96,14 +99,14 @@ void message_write_str(kb_message_writer_t* writer, const char* str, uint32_t le
  * @param str The UTF-8 string data to write
  * @param length The number of bytes to write
  */
-void message_write_utf8(kb_message_writer_t* writer, const char* str, uint32_t length);
+kb_message_error_t message_write_utf8(kb_message_writer_t *writer, const char *str, uint32_t length);
 
 /**
  * @brief Writes a null-terminated UTF-8 string to the writer
  * @param writer The message writer
  * @param str The null-terminated UTF-8 string to write
  */
-void message_write_utf8_cstr(kb_message_writer_t* writer, const char* str);
+kb_message_error_t message_write_utf8_cstr(kb_message_writer_t *writer, const char *str);
 
 /**
  * @brief Writes binary data to the writer
@@ -111,7 +114,7 @@ void message_write_utf8_cstr(kb_message_writer_t* writer, const char* str);
  * @param data The binary data to write
  * @param size The number of bytes to write
  */
-void message_write_bin(kb_message_writer_t* writer, const char* data, uint32_t size);
+kb_message_error_t message_write_bin(kb_message_writer_t *writer, const char *data, uint32_t size);
 
 /**
  * Opens a map.
@@ -129,7 +132,7 @@ void message_write_bin(kb_message_writer_t* writer, const char* data, uint32_t s
  * @see message_complete_map()
  * @see message_build_map() to count the number of key/value pairs automatically
  */
-void message_start_map(kb_message_writer_t* writer, uint32_t size);
+kb_message_error_t message_start_map(kb_message_writer_t *writer, uint32_t size);
 
 /**
  * Finishes writing a map.
@@ -142,7 +145,7 @@ void message_start_map(kb_message_writer_t* writer, uint32_t size);
  *
  * @see message_start_map()
  */
-void message_finish_map(kb_message_writer_t *writer);
+kb_message_error_t message_finish_map(kb_message_writer_t *writer);
 
 /**
  * Starts building a map.
@@ -182,7 +185,7 @@ void message_finish_map(kb_message_writer_t *writer);
  * @see message_complete_map() to complete this map
  * @see message_start_map() if you already know the size of the map
  */
-void message_build_map(kb_message_writer_t* writer);
+kb_message_error_t message_build_map(kb_message_writer_t *writer);
 
 /**
  * Finishes writing a map.
@@ -195,7 +198,7 @@ void message_build_map(kb_message_writer_t* writer);
  *
  * @see message_start_map()
  */
-void message_complete_map(kb_message_writer_t* writer);
+kb_message_error_t message_complete_map(kb_message_writer_t *writer);
 
 /**
  * Opens an array.
@@ -209,7 +212,7 @@ void message_complete_map(kb_message_writer_t* writer);
  * @see message_finish_array()
  * @see message_build_array() to count the number of elements automatically
  */
-void message_start_array(kb_message_writer_t* writer, uint32_t size);
+kb_message_error_t message_start_array(kb_message_writer_t *writer, uint32_t size);
 
 /**
  * Finishes writing an array.
@@ -222,7 +225,7 @@ void message_start_array(kb_message_writer_t* writer, uint32_t size);
  *
  * @see message_start_array()
  */
-void message_finish_array(kb_message_writer_t *writer);
+kb_message_error_t message_finish_array(kb_message_writer_t *writer);
 
 /**
  * Starts building an array.
@@ -242,7 +245,7 @@ void message_finish_array(kb_message_writer_t *writer);
  * @see message_start_array() if you already know the size of the array
  * @see message_build_map() for implementation details
  */
-void message_build_array(kb_message_writer_t *writer);
+kb_message_error_t message_build_array(kb_message_writer_t *writer);
 
 /**
  * Finishes writing an array.
@@ -255,7 +258,7 @@ void message_build_array(kb_message_writer_t *writer);
  *
  * @see message_start_array()
  */
-void message_complete_array(kb_message_writer_t* writer);
+kb_message_error_t message_complete_array(kb_message_writer_t *writer);
 
 #if !defined(__cplusplus)
 #define message_write(writer, value)       \

@@ -1,9 +1,7 @@
 #pragma once
 
-#include "transport.h"
-
-struct kb_peer_s {
-    kb_transport_t *transport;
+struct kb_peer_s
+{
 };
 
 typedef struct kb_peer_s kb_peer_t;

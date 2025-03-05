@@ -2,27 +2,26 @@
 
 #include <mpack.h>
 
-#define WRITER_FUNC_0(name)                          \
-    void message_##name(kb_message_writer_t *writer) \
-    {                                                \
-        mpack_##name(writer->data_writer);           \
+#define WRITER_FUNC_0(name)                                        \
+    kb_message_error_t message_##name(kb_message_writer_t *writer) \
+    {                                                              \
+        mpack_##name(writer->data_writer);                         \
+        return mpack_writer_error(writer->data_writer);            \
     }
 
-#define WRITER_FUNC_1(name, val_type)                                \
-    void message_##name(kb_message_writer_t *writer, val_type value) \
-    {                                                                \
-        mpack_##name(writer->data_writer, value);                    \
+#define WRITER_FUNC_1(name, val_type)                                              \
+    kb_message_error_t message_##name(kb_message_writer_t *writer, val_type value) \
+    {                                                                              \
+        mpack_##name(writer->data_writer, value);                                  \
+        return mpack_writer_error(writer->data_writer);                            \
     }
 
-#define WRITER_FUNC_2(name, val1_type, val2_type)                                        \
-    void message_##name(kb_message_writer_t *writer, val1_type value1, val2_type value2) \
-    {                                                                                    \
-        mpack_##name(writer->data_writer, value1, value2);                               \
+#define WRITER_FUNC_2(name, val1_type, val2_type)                                                      \
+    kb_message_error_t message_##name(kb_message_writer_t *writer, val1_type value1, val2_type value2) \
+    {                                                                                                  \
+        mpack_##name(writer->data_writer, value1, value2);                                             \
+        return mpack_writer_error(writer->data_writer);                                                \
     }
-
-// kb_writer_error_t writer_error(kb_message_writer_t* writer) {
-//     return mpack_writer_error(&writer->writer);
-// }
 
 void message_writer_init(kb_message_writer_t *writer, void *data, size_t size, log4c_category_t *logger)
 {

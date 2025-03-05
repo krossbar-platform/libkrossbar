@@ -34,7 +34,7 @@ void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 
     io_uring_sqe_set_data(sqe, &manager->read_event);
 
-    io_uring_prep_recv(sqe, transport_uds_get_fd(&manager->transport->base), NULL, 0, 0);
+    io_uring_prep_recv(sqe, manager->transport->sock_fd, NULL, 0, 0);
 
     int ret = io_uring_submit(manager->ring);
     if (ret < 0)
@@ -49,7 +49,7 @@ void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
 
     io_uring_sqe_set_data(sqe, &manager->write_event);
 
-    io_uring_prep_send(sqe, transport_uds_get_fd(&manager->transport->base), NULL, 0, 0);
+    io_uring_prep_send(sqe, manager->transport->sock_fd, NULL, 0, 0);
 
     int ret = io_uring_submit(manager->ring);
     if (ret < 0)
