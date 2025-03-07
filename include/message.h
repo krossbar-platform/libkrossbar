@@ -13,6 +13,7 @@ struct mpack_reader_t;
 
 struct kb_message_s
 {
+    uint64_t id;
     struct mpack_reader_t *data_reader;
     int (*destroy)(struct kb_message_s *message);
 };

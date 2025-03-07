@@ -24,6 +24,7 @@ add_library(${PROJECT_NAME}
     src/message_writer.c
     src/message.c
     src/peer.c
+    src/rpc.c
     src/shmem/transport_shm.c
     src/shmem/message_shm.c
     src/shmem/message_writer_shm.c
