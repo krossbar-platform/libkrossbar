@@ -15,6 +15,7 @@ kb_message_writer_uds_t *message_writer_uds_init(kb_transport_uds_t *transport,
 
     message_writer_init(&writer->base, buffer, buffer_size, transport->base.logger);
     writer->base.send = message_writer_uds_send;
+    writer->base.cancel = message_writer_uds_cancel;
 
     return writer;
 }
@@ -32,4 +33,9 @@ int message_writer_uds_send(kb_message_writer_t *writer)
     free(writer);
 
     return 0;
+}
+
+void message_writer_uds_cancel(kb_message_writer_t *writer)
+{
+    free(writer);
 }

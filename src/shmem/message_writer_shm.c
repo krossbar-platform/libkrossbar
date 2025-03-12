@@ -18,6 +18,7 @@ kb_message_writer_shm_t *message_writer_shm_init(kb_transport_shm_t *transport,
 
     message_writer_init(&writer->base, buffer, header->size, transport->base.logger);
     writer->base.send = message_writer_shm_send;
+    writer->base.cancel = message_writer_shm_cancel;
 
     return writer;
 }
@@ -34,4 +35,9 @@ int message_writer_shm_send(kb_message_writer_t *writer)
     free(writer);
 
     return 0;
+}
+
+void message_writer_shm_cancel(kb_message_writer_t *writer)
+{
+    free(writer);
 }

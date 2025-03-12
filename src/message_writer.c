@@ -58,6 +58,15 @@ int message_send(kb_message_writer_t *writer)
     return result;
 }
 
+void message_cancel(kb_message_writer_t *writer)
+{
+    mpack_writer_t *data_writer = writer->data_writer;
+    writer->cancel(writer);
+
+    mpack_writer_destroy(data_writer);
+    free(data_writer);
+}
+
 WRITER_FUNC_1(write_i8, int8_t);
 WRITER_FUNC_1(write_i16, int16_t);
 WRITER_FUNC_1(write_i32, int32_t);

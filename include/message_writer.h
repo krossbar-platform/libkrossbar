@@ -14,7 +14,8 @@ struct kb_message_writer_s
 {
     struct mpack_writer_t *data_writer;
     log4c_category_t *logger;
-    int (*send)(struct kb_message_writer_s *transport);
+    int (*send)(struct kb_message_writer_s *writer);
+    void (*cancel)(struct kb_message_writer_s *writer);
 };
 
 typedef struct kb_message_writer_s kb_message_writer_t;
@@ -38,6 +39,12 @@ size_t writer_message_size(kb_message_writer_t* writer);
  * @return 0 on success, non-zero on failure
  */
 int message_send(kb_message_writer_t *writer);
+
+/**
+ * @brief Cancels sending the message
+ * @param writer The message writer
+ */
+void message_cancel(kb_message_writer_t *writer);
 
 /**
  * @brief Writes a nil/NULL value to the writer

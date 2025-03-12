@@ -16,3 +16,4 @@ kb_message_writer_shm_t *message_writer_shm_init(kb_transport_shm_t *transport,
                                                  kb_message_header_t *header,
                                                  char *buffer);
 int message_writer_shm_send(kb_message_writer_t *writer);
+void message_writer_shm_cancel(kb_message_writer_t *writer);
