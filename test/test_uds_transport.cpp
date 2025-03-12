@@ -217,3 +217,22 @@ TEST(Transport, TestUDSTransportMultisend)
     transport_destroy(transport_writer);
     transport_destroy(transport_reader);
 }
+
+TEST(Transport, TestUDSMessageCancel)
+{
+    auto logger = log4c_category_get("libkrossbar.test");
+
+    struct io_uring ring;
+    ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+
+    int sockets[2];
+    // Create socket pair
+    ASSERT_NE(socketpair(AF_UNIX, SOCK_STREAM, 0, sockets), -1);
+    set_nonblocking(sockets[0]);
+    set_nonblocking(sockets[1]);
+
+    auto transport_writer = transport_uds_init("test", sockets[0], MESSAGE_SIZE, MAX_MESSAGE_NUM, &ring, logger);
+
+    auto message_writer = transport_message_init(transport_writer);
+    message_cancel(message_writer);
+}

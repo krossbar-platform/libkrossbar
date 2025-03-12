@@ -383,3 +383,23 @@ TEST(Transport, TestShmemSingleReplace)
     transport_destroy(&transport_writer->base);
     transport_destroy(transport_reader);
 }
+
+TEST(Transport, TestShmemMessageCancel)
+{
+    struct io_uring ring;
+    ASSERT_EQ(io_uring_queue_init(RING_QUEUE_DEPTH, &ring, 0), 0);
+
+    auto logger = log4c_category_get("libkrossbar.test");
+    auto map_fd_0 = transport_shm_create_mapping("map0", ARENA_SIZE, logger);
+    auto map_fd_1 = transport_shm_create_mapping("map1", ARENA_SIZE, logger);
+
+    auto transport_writer = transport_shm_init("test", map_fd_0, map_fd_1, MESSAGE_SIZE, &ring, logger);
+    auto shm_transport_writer = (kb_transport_shm_t *)transport_writer;
+    auto arena = &shm_transport_writer->write_arena;
+
+    ASSERT_EQ(arena->header->size, ARENA_SIZE);
+
+    auto message_writer = transport_message_init(transport_writer);
+    auto shm_writer = (kb_message_writer_shm_t *)message_writer;
+    message_cancel(message_writer);
+}
