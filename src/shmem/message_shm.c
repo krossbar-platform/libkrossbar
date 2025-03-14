@@ -12,7 +12,7 @@ kb_message_shm_t *message_shm_init(kb_transport_shm_t *transport,
     assert(header != NULL);
     assert(buffer != NULL);
 
-    kb_message_shm_t *message = calloc(1, sizeof(kb_message_shm_t));
+    kb_message_shm_t *message = malloc(sizeof(kb_message_shm_t));
     message->transport = transport;
     message->header = header;
 

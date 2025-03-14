@@ -402,4 +402,9 @@ TEST(Transport, TestShmemMessageCancel)
     auto message_writer = transport_message_init(transport_writer);
     auto shm_writer = (kb_message_writer_shm_t *)message_writer;
     message_cancel(message_writer);
+
+    ASSERT_EQ(arena->header->write_offset, 0);
+    ASSERT_EQ(arena->header->num_messages, 0);
+
+    transport_destroy(transport_writer);
 }

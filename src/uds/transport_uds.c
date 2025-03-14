@@ -20,16 +20,19 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
     assert(ring != NULL);
     assert(logger != NULL);
 
-    kb_transport_uds_t *transport = calloc(1, sizeof(kb_transport_uds_t));
+    kb_transport_uds_t *transport = malloc(sizeof(kb_transport_uds_t));
     if (transport == NULL)
     {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
         return NULL;
     }
 
+    transport->out_messages = NULL;
+    transport->out_message_count = 0;
     transport->max_message_size = max_message_size;
     transport->max_buffered_messages = max_buffered_messages;
     transport->sock_fd = fd;
+    transport->in_message.data = NULL;
 
     event_manager_uds_init(&transport->event_manager, transport, ring, logger);
 
@@ -78,9 +81,14 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     // Shrink message to fre some extra memory
     data = realloc(data, message_size);
-    out_messages_t *out_message = calloc(1, sizeof(out_messages_t));
+    out_messages_t *out_message = malloc(sizeof(out_messages_t));
+    out_message->prev = NULL;
+    out_message->next = NULL;
+
     out_message->message.data = data;
     out_message->message.data_size = message_size;
+    out_message->message.current_offset = 0;
+    out_message->message.header_sent = false;
 
     DL_APPEND(self->out_messages, out_message);
 

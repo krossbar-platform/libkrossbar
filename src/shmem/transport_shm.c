@@ -94,10 +94,10 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     assert(ring != NULL);
     assert(logger != NULL);
 
-    kb_transport_shm_t *transport = calloc(1, sizeof(kb_transport_shm_t));
+    kb_transport_shm_t *transport = malloc(sizeof(kb_transport_shm_t));
     if (transport == NULL)
     {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "calloc failed");
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
         return NULL;
     }
 

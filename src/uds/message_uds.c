@@ -10,7 +10,7 @@ kb_message_uds_t *message_uds_init(kb_transport_uds_t *transport,
     assert(buffer != NULL);
     assert(size > 0);
 
-    kb_message_uds_t *message = calloc(1, sizeof(kb_message_uds_t));
+    kb_message_uds_t *message = malloc(sizeof(kb_message_uds_t));
     message->transport = transport;
 
     message_init(&message->base, buffer, size);

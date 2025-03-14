@@ -7,13 +7,15 @@ uint64_t next_id(kb_rpc_t *rpc)
 
 kb_rpc_t *rpc_init(kb_transport_t *transport)
 {
-    kb_rpc_t *rpc = calloc(1, sizeof(kb_rpc_t));
+    kb_rpc_t *rpc = malloc(sizeof(kb_rpc_t));
     if (rpc == NULL)
     {
         return NULL;
     }
 
     rpc->transport = transport;
+    rpc->call_registry.entries = NULL;
+    rpc->subs_registry.entries = NULL;
 
     return rpc;
 }

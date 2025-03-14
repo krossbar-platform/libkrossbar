@@ -235,4 +235,6 @@ TEST(Transport, TestUDSMessageCancel)
 
     auto message_writer = transport_message_init(transport_writer);
     message_cancel(message_writer);
+
+    transport_destroy(transport_writer);
 }

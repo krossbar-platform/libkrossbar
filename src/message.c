@@ -1,12 +1,18 @@
 #include "message.h"
 
+#include <assert.h>
 #include <stdbool.h>
 #include <mpack.h>
 
 void message_init(kb_message_t *message, void *data, size_t size)
 {
+    assert(message != NULL);
+    assert(data != NULL);
+    assert(size > 0);
+
     message->data_reader = malloc(sizeof(mpack_reader_t));
     mpack_reader_init_data(message->data_reader, data, size);
+    message->destroy = NULL;
 }
 
 void message_destroy(kb_message_t *message)
