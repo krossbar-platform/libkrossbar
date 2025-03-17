@@ -1,3 +1,5 @@
+#if defined(IO_URING_FUTEXES)
+
 #include <thread>
 #include <future>
 
@@ -70,3 +72,5 @@ TEST(EventManagers, TestShmemEventManager)
     transport_destroy(transport_reader);
     future.wait();
 }
+
+#endif

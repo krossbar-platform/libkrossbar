@@ -1,3 +1,5 @@
+#if defined(IO_URING_FUTEXES)
+
 #include <string>
 
 #include <gtest/gtest.h>
@@ -408,3 +410,5 @@ TEST(Transport, TestShmemMessageCancel)
 
     transport_destroy(transport_writer);
 }
+
+#endif

@@ -19,33 +19,43 @@ if(NOT CMAKE_USE_PTHREADS_INIT)
     message(FATAL_ERROR "Pthreads not found")
 endif()
 
-# Add the executable
-add_library(${PROJECT_NAME}
+set(SOURCES
     src/message_writer.c
     src/message.c
     src/peer.c
     src/rpc.c
-    src/shmem/transport_shm.c
-    src/shmem/message_shm.c
-    src/shmem/message_writer_shm.c
-    src/shmem/event_manager_shm.c
     src/uds/transport_uds.c
     src/uds/message_uds.c
     src/uds/message_writer_uds.c
-    src/uds/event_manager_uds.c)
+    src/uds/event_manager_uds.c
+)
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
+set(IO_URING_FUTEXES YES CACHE BOOL "If target platform supports futexes for io_uring")
+
+if(IO_URING_FUTEXES)
+    list(APPEND SOURCES
+        src/shmem/transport_shm.c
+        src/shmem/message_shm.c
+        src/shmem/message_writer_shm.c
+        src/shmem/event_manager_shm.c
+    )
+
+    add_definitions(-DIO_URING_FUTEXES)
+endif()
+
+# Add the executable
+add_library(${PROJECT_NAME} ${SOURCES})
 
 set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 
 if(MESSAGE_BUFFER_SIZE)
-target_compile_definitions(${PROJECT_NAME} PRIVATE MESSAGE_BUFFER_SIZE=${MESSAGE_BUFFER_SIZE})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MESSAGE_BUFFER_SIZE=${MESSAGE_BUFFER_SIZE})
 endif()
 
 if(MAX_MESSAGE_SIZE)
-target_compile_definitions(${PROJECT_NAME} PRIVATE MAX_MESSAGE_SIZE=${MAX_MESSAGE_SIZE})
+    target_compile_definitions(${PROJECT_NAME} PRIVATE MAX_MESSAGE_SIZE=${MAX_MESSAGE_SIZE})
 endif()
 
 target_link_libraries(${PROJECT_NAME} PUBLIC
@@ -69,7 +79,7 @@ add_custom_target(run
     WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
 )
 
-if (ENABLE_TESTING)
+if(ENABLE_TESTING)
     include(CTest)
     add_subdirectory(test)
 endif()
