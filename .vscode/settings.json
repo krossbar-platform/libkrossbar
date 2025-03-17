@@ -90,7 +90,8 @@
         "cinttypes": "cpp",
         "variant": "cpp",
         "text_encoding": "cpp",
-        "ios": "cpp"
+        "ios": "cpp",
+        "valarray": "cpp"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",
