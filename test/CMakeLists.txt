@@ -5,7 +5,9 @@ pkg_check_modules(GTEST REQUIRED gtest)
 pkg_check_modules(GTEST REQUIRED gtest_main)
 
 file(GLOB_RECURSE TEST_SOURCES LIST_DIRECTORIES false *.h *.cpp)
-add_executable(${BINARY} ${TEST_SOURCES})
+add_executable(${BINARY}
+    ${TEST_SOURCES}
+    "mocks/transport_mock.cpp")
 
 add_dependencies(${BINARY} ${PROJECT_NAME})
 
@@ -22,6 +24,7 @@ target_include_directories(${BINARY} PRIVATE
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/src"
     ${GTEST_INCLUDE_DIRS}
+    ${UTHASH_INCLUDE_DIRS}
 )
 
 include(GoogleTest)

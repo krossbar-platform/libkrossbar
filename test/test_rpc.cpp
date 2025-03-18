@@ -3,104 +3,12 @@
 #include <gtest/gtest.h>
 #include <mpack.h>
 
-extern "C" {
-    #include <uds/transport_uds.h>
-    #include <uds/message_uds.h>
-    #include <uds/message_writer_uds.h>
-    #include <rpc.h>
+#include "mocks/transport_mock.h"
+
+extern "C"
+{
+#include <rpc.h>
 }
-
-static constexpr size_t MESSAGE_SIZE = 128;
-
-class MessageWriterMock: public kb_message_writer_t
-{
-public:
-    MessageWriterMock(TransportMock *transport, log4c_category_t *logger) : m_transport(transport)
-    {
-        message_writer_init(this, m_data.data(), m_data.size(), logger);
-        send = send_impl;
-    }
-
-    ~MessageWriterMock()
-    {
-        mpack_writer_destroy(data_writer);
-        free(data_writer);
-    }
-
-    static int send_impl(struct kb_message_writer_s *writer)
-    {
-        auto self = reinterpret_cast<MessageWriterMock *>(writer);
-
-        self->m_transport->add_message(std::move(self->m_data));
-        delete self;
-        return 0;
-    }
-
-private:
-    TransportMock *m_transport;
-    std::array<uint8_t, MESSAGE_SIZE> m_data = {};
-};
-
-class MessageMock: public kb_message_t
-{
-public:
-    MessageMock(std::array<uint8_t, MESSAGE_SIZE> &&data): m_data(std::move(data))
-    {
-        message_init(this, m_data.data(), m_data.size());
-        destroy = destroy_impl;
-    }
-
-    static int destroy_impl(struct kb_message_s *message)
-    {
-        mpack_reader_destroy(message->data_reader);
-        free(message->data_reader);
-    }
-
-private:
-    std::array<uint8_t, MESSAGE_SIZE> m_data;
-};
-
-class TransportMock: public kb_transport_s
-{
-public:
-    TransportMock(log4c_category_t *logger,
-                   const char *name)
-    {
-        logger = logger;
-        name = name;
-        message_init = message_init_impl;
-        message_receive = message_receive_impl;
-    }
-
-    static kb_message_writer_t *TransportMock::message_init_impl(struct kb_transport_s *transport)
-    {
-        auto self = reinterpret_cast<TransportMock *>(transport);
-
-        return new MessageWriterMock(self, self->logger);
-    }
-
-    static kb_message_t *message_receive_impl(struct kb_transport_s *transport)
-    {
-        auto self = reinterpret_cast<TransportMock *>(transport);
-
-        if (self->m_messages.empty())
-        {
-            return nullptr;
-        }
-
-        MessageMock *message = new MessageMock(std::move(self->m_messages.front()));
-        self->m_messages.pop_front();
-        return message;
-    }
-
-    void add_message(std::array<uint8_t, MESSAGE_SIZE> &&message)
-    {
-        m_messages.push_back(message);
-    }
-
-private:
-    std::deque<std::array<uint8_t, MESSAGE_SIZE>> m_messages = {};
-};
 
 TEST(Rpc, TestRpcCall)
 {
@@ -111,6 +19,23 @@ TEST(Rpc, TestRpcCall)
     auto rpc_reader = rpc_init(&transport, logger);
 
     auto outgoing_message = rpc_message(rpc_writer);
-    message_write_u16(outgoing_message, 42);
-    message_send(outgoing_message);
+    ASSERT_EQ(message_write_u16(outgoing_message, 42), KB_MESSAGE_OK);
+    ASSERT_EQ(message_send(outgoing_message), 0);
+
+    auto incoming_message = transport_message_receive(&transport);
+    ASSERT_NE(incoming_message, nullptr);
+
+    auto rpc_message = rpc_handle_incoming_message(rpc_reader, incoming_message);
+    ASSERT_NE(rpc_message, nullptr);
+
+    ASSERT_EQ(rpc_message->type, KB_MESSAGE_TYPE_MESSAGE);
+    ASSERT_NE(rpc_message->message, nullptr);
+
+    auto tag = message_read_tag(rpc_message->message);
+    ASSERT_EQ(tag.type, mpack_type_uint);
+    ASSERT_EQ(tag.v.u, 42);
+
+    // rpc_message_release(rpc_message);
+    rpc_destroy(rpc_writer);
+    rpc_destroy(rpc_reader);
 }

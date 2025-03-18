@@ -24,7 +24,14 @@ kb_rpc_t *rpc_init(kb_transport_t *transport, log4c_category_t *logger)
 
 kb_message_writer_t *rpc_message(kb_rpc_t *rpc)
 {
-    return transport_message_init(rpc->transport);
+    kb_message_writer_t *writer = transport_message_init(rpc->transport);
+
+    if (writer)
+    {
+        rpc_write_message_header(writer, next_id(rpc), KB_MESSAGE_TYPE_MESSAGE);
+    }
+
+    return writer;
 }
 
 kb_message_writer_t *rpc_call(kb_rpc_t *rpc, void (*callback)(kb_message_t *message), void *context)
@@ -43,6 +50,11 @@ kb_message_writer_t *rpc_subscribe(kb_rpc_t *rpc, void (*callback)(kb_message_t 
 
 kb_message_writer_t *wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *writer, kb_message_type_t type, void (*callback)(kb_message_t *message))
 {
+    if (writer == NULL)
+    {
+        return NULL;
+    }
+
     kb_rpc_message_writer_t *message = malloc(sizeof(kb_rpc_message_writer_t));
 
     if (message == NULL)
@@ -63,8 +75,7 @@ kb_message_writer_t *wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *
     message->base.send = rpc_message_send;
     message->base.cancel = rpc_message_cancel;
 
-    message_write_u64(message->transport_writer, id);
-    message_write_u8(message->transport_writer, type);
+    rpc_write_message_header(writer, id, type);
 
     return (kb_message_writer_t *)message;
 }
@@ -99,7 +110,13 @@ void rpc_message_cancel(kb_message_writer_t *writer)
     return message_cancel(writer);
 }
 
-kb_rpc_message_t *handle_incoming_message(kb_rpc_t *rpc, kb_message_t *message)
+void rpc_message_release(kb_rpc_message_t *message)
+{
+    message_destroy(message->message);
+    free(message);
+}
+
+kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *message)
 {
     kb_call_entry_t *entry = NULL;
 
@@ -151,6 +168,12 @@ kb_rpc_message_t *handle_incoming_message(kb_rpc_t *rpc, kb_message_t *message)
 
         return rpc_message;
     }
+}
+
+void rpc_write_message_header(kb_message_writer_t *message, uint64_t id, kb_message_type_t type)
+{
+    message_write_u64(message, id);
+    message_write_u8(message, type);
 }
 
 void rpc_destroy(kb_rpc_t *rpc)

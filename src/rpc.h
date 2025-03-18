@@ -8,9 +8,10 @@
 
 enum kb_message_type_e
 {
-    KB_MESSAGE_TYPE_CALL = 0,
-    KB_MESSAGE_TYPE_SUBSCRIPTION = 1,
-    KB_MESSAGE_TYPE_RESPONSE = 2,
+    KB_MESSAGE_TYPE_MESSAGE = 0,
+    KB_MESSAGE_TYPE_CALL = 1,
+    KB_MESSAGE_TYPE_SUBSCRIPTION = 2,
+    KB_MESSAGE_TYPE_RESPONSE = 3,
 };
 
 typedef enum kb_message_type_e kb_message_type_t;
@@ -77,5 +78,7 @@ kb_message_writer_t *wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *
                                             kb_message_type_t type, void (*callback)(kb_message_t *message));
 int rpc_message_send(kb_message_writer_t *writer);
 void rpc_message_cancel(kb_message_writer_t *writer);
+void rpc_message_release(kb_rpc_message_t *message);
 
-kb_rpc_message_t *handle_incoming_message(kb_rpc_t *rpc, kb_message_t *message);
+kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *message);
+void rpc_write_message_header(kb_message_writer_t *message, uint64_t id, kb_message_type_t type);
