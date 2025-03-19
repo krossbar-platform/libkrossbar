@@ -18,6 +18,7 @@ kb_rpc_t *rpc_init(kb_transport_t *transport, log4c_category_t *logger)
     rpc->transport = transport;
     rpc->logger = logger;
     rpc->calls_registry.entries = NULL;
+    rpc->id_counter = 1;
 
     return rpc;
 }

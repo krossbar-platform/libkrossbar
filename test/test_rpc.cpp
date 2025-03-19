@@ -35,7 +35,7 @@ TEST(Rpc, TestRpcCall)
     ASSERT_EQ(tag.type, mpack_type_uint);
     ASSERT_EQ(tag.v.u, 42);
 
-    // rpc_message_release(rpc_message);
+    rpc_message_release(rpc_message);
     rpc_destroy(rpc_writer);
     rpc_destroy(rpc_reader);
 }

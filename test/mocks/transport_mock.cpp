@@ -4,6 +4,7 @@
 
 MessageWriterMock::MessageWriterMock(TransportMock *transport, log4c_category_t *logger) : m_transport(transport)
 {
+    m_data.fill(0);
     message_writer_init(this, m_data.data(), m_data.size(), logger);
     send = send_impl;
 }
@@ -25,8 +26,7 @@ MessageMock::MessageMock(std::array<uint8_t, MESSAGE_SIZE> &&data): m_data(std::
 
 int MessageMock::destroy_impl(struct kb_message_s *message)
 {
-    mpack_reader_destroy(message->data_reader);
-    free(message->data_reader);
+    delete (MessageMock *)message;
 
     return 0;
 }
@@ -42,14 +42,14 @@ TransportMock::TransportMock(log4c_category_t *logger,
 
 kb_message_writer_t *TransportMock::TransportMock::message_init_impl(struct kb_transport_s *transport)
 {
-    auto self = reinterpret_cast<TransportMock *>(transport);
+    auto self = (TransportMock *)transport;
 
     return new MessageWriterMock(self, self->logger);
 }
 
 kb_message_t *TransportMock::message_receive_impl(struct kb_transport_s *transport)
 {
-    auto self = reinterpret_cast<TransportMock *>(transport);
+    auto self = (TransportMock *)transport;
 
     if (self->m_messages.empty())
     {
