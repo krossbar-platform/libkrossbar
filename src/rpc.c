@@ -35,21 +35,21 @@ kb_message_writer_t *rpc_message(kb_rpc_t *rpc)
     return writer;
 }
 
-kb_message_writer_t *rpc_call(kb_rpc_t *rpc, void (*callback)(kb_message_t *message), void *context)
+kb_message_writer_t *rpc_call(kb_rpc_t *rpc, void (*callback)(kb_message_t *, void *), void *context)
 {
     kb_message_writer_t *writer = transport_message_init(rpc->transport);
 
-    return wrap_transport_message(rpc, writer, KB_MESSAGE_TYPE_CALL, callback);
+    return rpc_wrap_transport_message(rpc, writer, KB_MESSAGE_TYPE_CALL, callback, context);
 }
 
-kb_message_writer_t *rpc_subscribe(kb_rpc_t *rpc, void (*callback)(kb_message_t *message), void *context)
+kb_message_writer_t *rpc_subscribe(kb_rpc_t *rpc, void (*callback)(kb_message_t *, void *), void *context)
 {
     kb_message_writer_t *writer = transport_message_init(rpc->transport);
 
-    return wrap_transport_message(rpc, writer, KB_MESSAGE_TYPE_SUBSCRIPTION, callback);
+    return rpc_wrap_transport_message(rpc, writer, KB_MESSAGE_TYPE_SUBSCRIPTION, callback, context);
 }
 
-kb_message_writer_t *wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *writer, kb_message_type_t type, void (*callback)(kb_message_t *message))
+kb_message_writer_t *rpc_wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *writer, kb_message_type_t type, void (*callback)(kb_message_t *, void *), void *context)
 {
     if (writer == NULL)
     {
@@ -70,6 +70,7 @@ kb_message_writer_t *wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *
     message->id = id;
     message->type = type;
     message->callback = callback;
+    message->context = context;
 
     message->base.data_writer = writer->data_writer;
     message->base.logger = writer->logger;
@@ -78,7 +79,7 @@ kb_message_writer_t *wrap_transport_message(kb_rpc_t *rpc, kb_message_writer_t *
 
     rpc_write_message_header(writer, id, type);
 
-    return (kb_message_writer_t *)message;
+    return &message->base;
 }
 
 int rpc_message_send(kb_message_writer_t *writer)
@@ -86,7 +87,7 @@ int rpc_message_send(kb_message_writer_t *writer)
     kb_rpc_message_writer_t *message = (kb_rpc_message_writer_t *)writer;
     kb_rpc_t *rpc = message->rpc;
 
-    int result = message_send(message->transport_writer);
+    int result = message->transport_writer->send(message->transport_writer);
 
     if (result != 0)
     {
@@ -103,12 +104,31 @@ int rpc_message_send(kb_message_writer_t *writer)
 
     log4c_category_log(rpc->logger, LOG4C_PRIORITY_DEBUG, "Sending new message with id `%ld` of type `%d`", message->id, message->type);
 
+    free(message);
+
     return result;
 }
 
 void rpc_message_cancel(kb_message_writer_t *writer)
 {
     return message_cancel(writer);
+}
+
+kb_message_t *rpc_message_body(kb_rpc_message_t *message)
+{
+    return message->message;
+}
+
+kb_message_writer_t *rpc_message_respond(kb_rpc_message_t *message)
+{
+    kb_message_writer_t *writer = transport_message_init(message->rpc->transport);
+
+    if (writer)
+    {
+        rpc_write_message_header(writer, message->id, KB_MESSAGE_TYPE_RESPONSE);
+    }
+
+    return writer;
 }
 
 void rpc_message_release(kb_rpc_message_t *message)
@@ -146,13 +166,17 @@ kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *messa
 
         if (entry != NULL)
         {
-            entry->callback(message);
+            entry->callback(message, entry->context);
             if (entry->type == KB_MESSAGE_TYPE_CALL)
             {
                 HASH_DEL(rpc->calls_registry.entries, entry);
                 free(entry);
             }
         }
+
+        message_destroy(message);
+
+        return NULL;
     }
     else
     {
@@ -165,6 +189,8 @@ kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *messa
         }
 
         rpc_message->message = message;
+        rpc_message->rpc = rpc;
+        rpc_message->id = id;
         rpc_message->type = type;
 
         return rpc_message;
