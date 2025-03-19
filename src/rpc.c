@@ -175,7 +175,7 @@ kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *messa
         }
         else
         {
-            log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Received response for unknown call id: %ld", id);
+            log4c_category_log(rpc->logger, LOG4C_PRIORITY_WARN, "Received a response for unknown call id: %ld", id);
         }
 
         message_destroy(message);

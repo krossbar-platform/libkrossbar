@@ -95,6 +95,7 @@
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",
+        "-DENABLE_PERFORMANCE_TESTING=ON",
         "-DCMAKE_BUILD_TYPE=Debug"
     ]
 }

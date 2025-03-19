@@ -83,3 +83,7 @@ if(ENABLE_TESTING)
     include(CTest)
     add_subdirectory(test)
 endif()
+
+if(ENABLE_PERFORMANCE_TESTING)
+    add_subdirectory(performance)
+endif()
