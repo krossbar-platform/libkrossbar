@@ -76,11 +76,12 @@ int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_cat
     return result_fd;
 }
 
-size_t transport_shm_get_mapping_size(int map_fd)
+size_t transport_shm_get_mapping_size(int map_fd, log4c_category_t *logger)
 {
     struct stat stat;
     if (fstat(map_fd, &stat) == -1)
     {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "fstat failed: %s", strerror(errno));
         return 0;
     }
 
@@ -112,7 +113,7 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     event_manager_shm_init(&transport->event_manager, transport, ring, logger);
 
     // Map read shared memory
-    size_t read_mapping_size = transport_shm_get_mapping_size(read_fd);
+    size_t read_mapping_size = transport_shm_get_mapping_size(read_fd, logger);
     void *map_read_addr = mmap(NULL, read_mapping_size, PROT_READ | PROT_WRITE,
                                MAP_SHARED, read_fd, 0);
     if (map_read_addr == MAP_FAILED)
@@ -127,7 +128,7 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     transport->read_arena.shm_fd = read_fd;
 
     // Map write shared memory
-    size_t write_mapping_size = transport_shm_get_mapping_size(write_fd);
+    size_t write_mapping_size = transport_shm_get_mapping_size(write_fd, logger);
 
     if (write_mapping_size < max_message_size)
     {

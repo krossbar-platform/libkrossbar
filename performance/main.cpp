@@ -1,23 +1,28 @@
 #include <iostream>
 
+#include <log4c.h>
+
 #include "transport_perf_test.h"
 
 int main()
 {
-    auto test_cases = std::vector<std::pair<size_t, size_t>>
-    {
+    log4c_init();
+    auto logger = log4c_category_get("libkrossbar.test");
+    log4c_category_set_priority(logger, LOG4C_PRIORITY_WARN);
+    log4c_category_set_appender(logger, log4c_appender_get("stdout"));
+
+    auto shmem_test_cases = std::vector<std::pair<size_t, size_t>>{
         {10, 1000},
         {1000, 1000},
         {100000, 100},
-        {1000000, 10}
-    };
+        {1000000, 10}};
 
-    for (auto &test_case : test_cases)
+    for (auto &test_case : shmem_test_cases)
     {
-        TransportPerfTestRunner runner {test_case.first, test_case.second, TransportPerfTestRunner::TransportType::SHMEM};
+        TransportPerfTestRunner runner{test_case.first, test_case.second, TransportPerfTestRunner::TransportType::SHMEM, logger};
         auto duration = runner.run();
 
-        std::cout << "UDS: " << test_case.first << " bytes, " << test_case.second << " messages: " << duration.count() << "us" << std::endl;
+        std::cout << "Shared memory transport: " << test_case.first << " bytes, " << test_case.second << " messages: " << duration.count() << "us" << std::endl;
         std::cout << "~" << 1000000 / duration.count() * test_case.second << " messages/s" << std::endl;
     }
 

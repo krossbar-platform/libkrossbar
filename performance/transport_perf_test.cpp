@@ -13,7 +13,7 @@ extern "C"
 #include "shmem/event_manager_shm.h"
 }
 
-static constexpr size_t ARENA_SIZE = 512;
+static constexpr size_t ARENA_SIZE = 10000000;
 static constexpr size_t RING_QUEUE_DEPTH = 32;
 
 namespace
@@ -37,14 +37,11 @@ int set_nonblocking(int fd)
 }
 }
 
-TransportPerfTestRunner::TransportPerfTestRunner(size_t message_size, size_t message_count, TransportType transport_type)
-    : m_message_size(message_size)
-    , m_message_count(message_count)
+TransportPerfTestRunner::TransportPerfTestRunner(size_t message_size, size_t message_count, TransportType transport_type, log4c_category_t *logger)
+    : m_message_size(message_size), m_message_count(message_count)
 {
     io_uring_queue_init(RING_QUEUE_DEPTH, &m_sender_ring, 0);
     io_uring_queue_init(RING_QUEUE_DEPTH, &m_receiver_ring, 0);
-
-    auto logger = log4c_category_get("libkrossbar.test");
 
     switch (transport_type)
     {
@@ -77,7 +74,6 @@ TransportPerfTestRunner::TransportPerfTestRunner(size_t message_size, size_t mes
 
 TransportPerfTestRunner::~TransportPerfTestRunner()
 {
-    std::cout << "Destroying transports" << std::endl;
     transport_destroy(m_sender_transport);
     transport_destroy(m_receiver_transport);
 }

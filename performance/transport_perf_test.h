@@ -5,6 +5,7 @@
 #include <chrono>
 
 #include <liburing.h>
+#include <log4c.h>
 
 extern "C"
 {
@@ -20,7 +21,7 @@ public:
         SHMEM
     };
 
-    TransportPerfTestRunner(size_t message_size, size_t message_count, TransportType transport_type);
+    TransportPerfTestRunner(size_t message_size, size_t message_count, TransportType transport_type, log4c_category_t *logger);
     ~TransportPerfTestRunner();
 
     std::chrono::microseconds run();

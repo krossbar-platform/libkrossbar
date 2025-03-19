@@ -49,7 +49,7 @@ struct kb_transport_shm_s
 typedef struct kb_transport_shm_s kb_transport_shm_t;
 
 int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_category_t *logger);
-size_t transport_shm_get_mapping_size(int map_fd);
+size_t transport_shm_get_mapping_size(int map_fd, log4c_category_t *logger);
 
 kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
                                    size_t max_message_size, struct io_uring *ring, log4c_category_t *logger);
