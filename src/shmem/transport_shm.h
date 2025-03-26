@@ -3,7 +3,7 @@
 #include <semaphore.h>
 #include <stdatomic.h>
 
-#include "transport.h"
+#include "../transport.h"
 #include "event_manager_shm.h"
 
 struct kb_message_writer_shm_s;
@@ -39,7 +39,6 @@ typedef struct kb_message_header_s kb_message_header_t;
 struct kb_transport_shm_s
 {
     kb_transport_t base;
-    kb_event_manager_shm_t event_manager;
     kb_arena_t read_arena;
     kb_arena_t write_arena;
     size_t max_message_size;

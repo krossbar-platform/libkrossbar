@@ -41,7 +41,7 @@ TEST(EventManagers, TestShmemEventManager)
 
     auto transport_writer = transport_shm_init("test", map_fd_0, map_fd_1, MESSAGE_SIZE, &ring, logger);
     auto transport_reader = transport_shm_init("test", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
-    auto reader_event_manager = &((kb_transport_shm_t *)transport_reader)->event_manager;
+    auto reader_event_manager = (kb_event_manager_shm_t *)transport_reader->event_manager;
 
     auto message = transport_message_receive(transport_reader);
 

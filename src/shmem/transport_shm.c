@@ -110,7 +110,15 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     transport->base.message_receive = transport_shm_message_receive;
     transport->base.destroy = transport_shm_destroy;
 
-    event_manager_shm_init(&transport->event_manager, transport, ring, logger);
+    kb_event_manager_shm_t *event_manager = event_manager_shm_create(transport, ring, logger);
+    if (event_manager == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
+        transport_shm_destroy(&transport->base);
+        return NULL;
+    }
+
+    transport->base.event_manager = (kb_event_manager_t *)event_manager;
 
     // Map read shared memory
     size_t read_mapping_size = transport_shm_get_mapping_size(read_fd, logger);
@@ -244,7 +252,7 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     sem_post(&arena_header->write_sem);
     log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "New shmem message in `%s`: %d messages in the buffer", transport->name, num_mesages + 1);
 
-    event_manager_shm_signal_new_message(&self->event_manager);
+    event_manager_shm_signal_new_message((kb_event_manager_shm_t *)transport->event_manager);
 }
 
 kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
@@ -324,6 +332,8 @@ void transport_shm_destroy(kb_transport_t *transport)
         munmap(self->write_arena.addr, self->write_arena.header->size + sizeof(kb_arena_header_t));
         close(self->write_arena.shm_fd);
     }
+
+    event_manager_shm_destroy((kb_event_manager_shm_t *)transport->event_manager);
 
     free(transport);
 }

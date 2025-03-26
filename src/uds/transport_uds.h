@@ -1,7 +1,7 @@
 #pragma once
 
 #include "event_manager_uds.h"
-#include "transport.h"
+#include "../transport.h"
 
 struct io_uring;
 
@@ -37,7 +37,6 @@ typedef struct out_messages_s out_messages_t;
 struct kb_transport_uds_s
 {
     kb_transport_t base;
-    kb_event_manager_uds_t event_manager;
     int sock_fd;
     size_t max_message_size;
     // Out messages for writing into the socket

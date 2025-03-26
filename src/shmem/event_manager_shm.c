@@ -8,29 +8,35 @@
 
 #include "transport_shm.h"
 
-void event_manager_shm_init(kb_event_manager_shm_t *manager, struct kb_transport_shm_s *transport, struct io_uring *ring, log4c_category_t *logger)
+kb_event_manager_shm_t *event_manager_shm_create(struct kb_transport_shm_s *transport, struct io_uring *ring, log4c_category_t *logger)
 {
-    assert(manager != NULL);
     assert(transport != NULL);
     assert(ring != NULL);
+
+    kb_event_manager_shm_t *manager = malloc(sizeof(kb_event_manager_shm_t));
+    if (manager == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
+        return NULL;
+    }
 
     struct io_uring_probe *probe = io_uring_get_probe_ring(ring);
     if (!probe)
     {
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to get probe: %s", strerror(errno));
-        return;
+        return NULL;
     }
 
     if (!io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAIT))
     {
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "IORING_OP_FUTEX_WAIT not supported");
-        return;
+        return NULL;
     }
 
     if (!io_uring_opcode_supported(probe, IORING_OP_FUTEX_WAKE))
     {
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "IORING_OP_FUTEX_WAKE not supported");
-        return;
+        return NULL;
     }
 
     free(probe);
@@ -39,11 +45,22 @@ void event_manager_shm_init(kb_event_manager_shm_t *manager, struct kb_transport
     manager->ring = ring;
     manager->base.logger = logger;
     manager->base.handle_event = event_manager_shm_handle_event;
+
+    return manager;
+}
+
+void event_manager_shm_destroy(kb_event_manager_shm_t *manager)
+{
+    if (manager)
+    {
+        free(manager);
+    }
 }
 
 void event_manager_shm_signal_new_message(kb_event_manager_shm_t *manager)
 {
     struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
+    io_uring_sqe_set_data(sqe, manager);
 
     kb_arena_header_t *header = manager->transport->write_arena.header;
 

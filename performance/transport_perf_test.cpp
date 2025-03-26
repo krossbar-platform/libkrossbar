@@ -70,12 +70,40 @@ TransportPerfTestRunner::TransportPerfTestRunner(size_t message_size, size_t mes
     default:
         exit(1);
     }
+
+    start_event_loop(&m_sender_ring, transport_get_event_manager(m_sender_transport));
+    start_event_loop(&m_receiver_ring, transport_get_event_manager(m_receiver_transport));
 }
 
 TransportPerfTestRunner::~TransportPerfTestRunner()
 {
+    io_uring_queue_exit(&m_sender_ring);
+    io_uring_queue_exit(&m_receiver_ring);
+
     transport_destroy(m_sender_transport);
     transport_destroy(m_receiver_transport);
+}
+
+void TransportPerfTestRunner::start_event_loop(struct io_uring *ring, kb_event_manager_t *event_manager)
+{
+    std::thread ring_thread([this, ring, event_manager]()
+                            {
+            struct io_uring_cqe *cqe;
+            while (true)
+            {
+                auto res = io_uring_wait_cqe(ring, &cqe);
+
+                if (res < 0 || cqe->res < 0)
+                {
+                    log4c_category_log(m_logger, LOG4C_PRIORITY_TRACE, "Ring exited: %d, %s\n", -cqe->res, strerror(-cqe->res));
+                    break;
+                };
+
+                event_manager_handle_event(event_manager, cqe);
+                io_uring_cqe_seen(ring, cqe);
+            } });
+
+    ring_thread.detach();
 }
 
 std::chrono::microseconds TransportPerfTestRunner::run()

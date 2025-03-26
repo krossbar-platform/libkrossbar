@@ -34,13 +34,20 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
     transport->sock_fd = fd;
     transport->in_message.data = NULL;
 
-    event_manager_uds_init(&transport->event_manager, transport, ring, logger);
-
     transport->base.name = strdup(name);
     transport->base.logger = logger;
     transport->base.message_init = transport_uds_message_init;
     transport->base.message_receive = transport_uds_message_receive;
     transport->base.destroy = transport_uds_destroy;
+
+    kb_event_manager_uds_t *event_manager = event_manager_uds_create(transport, ring, logger);
+    if (event_manager == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
+        transport_uds_destroy((kb_transport_t *)transport);
+        return NULL;
+    }
+    transport->base.event_manager = (kb_event_manager_t *)event_manager;
 
     int flags = fcntl(fd, F_GETFL);
     fcntl(fd, F_SETFL, flags | O_NONBLOCK);
@@ -94,7 +101,7 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     if (self->out_message_count == 0)
     {
-        event_manager_uds_wait_writeable(&self->event_manager);
+        event_manager_uds_wait_writeable((kb_event_manager_uds_t *)self->base.event_manager);
     }
 
     self->out_message_count++;
@@ -243,6 +250,8 @@ void transport_uds_destroy(kb_transport_t *transport)
     {
         free(self->in_message.data);
     }
+
+    event_manager_uds_destroy((kb_event_manager_uds_t *)transport->event_manager);
 
     free(self);
 }

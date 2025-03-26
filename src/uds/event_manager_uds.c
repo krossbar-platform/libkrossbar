@@ -8,11 +8,17 @@
 
 #include "transport_uds.h"
 
-void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport_uds_s *transport, struct io_uring *ring, log4c_category_t *logger)
+kb_event_manager_uds_t *event_manager_uds_create(struct kb_transport_uds_s *transport, struct io_uring *ring, log4c_category_t *logger)
 {
-    assert(manager != NULL);
     assert(transport != NULL);
     assert(ring != NULL);
+
+    kb_event_manager_uds_t *manager = malloc(sizeof(kb_event_manager_uds_t));
+    if (manager == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
+        return NULL;
+    }
 
     manager->transport = transport;
     manager->ring = ring;
@@ -26,6 +32,16 @@ void event_manager_uds_init(kb_event_manager_uds_t *manager, struct kb_transport
     manager->write_event.event_type = KB_UDS_EVENT_WRITEABLE;
 
     event_manager_uds_wait_readable(manager);
+
+    return manager;
+}
+
+void event_manager_uds_destroy(kb_event_manager_uds_t *manager)
+{
+    if (manager)
+    {
+        free(manager);
+    }
 }
 
 void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)

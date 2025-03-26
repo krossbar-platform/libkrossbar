@@ -91,7 +91,8 @@
         "variant": "cpp",
         "text_encoding": "cpp",
         "ios": "cpp",
-        "valarray": "cpp"
+        "valarray": "cpp",
+        "message_writer.h": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",
