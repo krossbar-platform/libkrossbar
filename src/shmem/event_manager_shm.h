@@ -10,8 +10,9 @@ struct io_uring_cqe;
 struct kb_event_manager_shm_s
 {
     kb_event_manager_t base;
-    struct kb_transport_shm_s *transport;
-    struct io_uring *ring;
+
+    kb_event_t read_event;
+    kb_event_t write_event;
 };
 
 typedef struct kb_event_manager_shm_s kb_event_manager_shm_t;

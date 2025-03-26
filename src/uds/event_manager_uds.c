@@ -20,15 +20,15 @@ kb_event_manager_uds_t *event_manager_uds_create(struct kb_transport_uds_s *tran
         return NULL;
     }
 
-    manager->transport = transport;
-    manager->ring = ring;
+    manager->base.transport = (kb_transport_t *)transport;
+    manager->base.ring = ring;
     manager->base.logger = logger;
     manager->base.handle_event = event_manager_uds_handle_event;
 
-    manager->read_event.manager = manager;
+    manager->read_event.manager = (kb_event_manager_t *)manager;
     manager->read_event.event_type = KB_UDS_EVENT_READABLE;
 
-    manager->write_event.manager = manager;
+    manager->write_event.manager = (kb_event_manager_t *)manager;
     manager->write_event.event_type = KB_UDS_EVENT_WRITEABLE;
 
     event_manager_uds_wait_readable(manager);
@@ -46,13 +46,16 @@ void event_manager_uds_destroy(kb_event_manager_uds_t *manager)
 
 void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 {
-    struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
+    struct io_uring *ring = manager->base.ring;
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
 
     io_uring_sqe_set_data(sqe, &manager->read_event);
 
-    io_uring_prep_recv(sqe, manager->transport->sock_fd, NULL, 0, 0);
+    kb_transport_uds_t *transport = (kb_transport_uds_t *)manager->base.transport;
 
-    int ret = io_uring_submit(manager->ring);
+    io_uring_prep_recv(sqe, transport->sock_fd, NULL, 0, 0);
+
+    int ret = io_uring_submit(ring);
     if (ret < 0)
     {
         log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wait submit error: %s", strerror(-ret));
@@ -61,13 +64,16 @@ void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 
 void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
 {
-    struct io_uring_sqe *sqe = io_uring_get_sqe(manager->ring);
+    struct io_uring *ring = manager->base.ring;
+    struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
 
     io_uring_sqe_set_data(sqe, &manager->write_event);
 
-    io_uring_prep_send(sqe, manager->transport->sock_fd, NULL, 0, 0);
+    kb_transport_uds_t *transport = (kb_transport_uds_t *)manager->base.transport;
 
-    int ret = io_uring_submit(manager->ring);
+    io_uring_prep_send(sqe, transport->sock_fd, NULL, 0, 0);
+
+    int ret = io_uring_submit(ring);
     if (ret < 0)
     {
         log4c_category_log(manager->base.logger, LOG4C_PRIORITY_ERROR, "io_uring futex wait submit error: %s", strerror(-ret));
@@ -76,9 +82,9 @@ void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
 
 kb_message_t *event_manager_uds_handle_event(struct io_uring_cqe *cqe)
 {
-    kb_uds_event_t *event = (kb_uds_event_t *)io_uring_cqe_get_data(cqe);
+    kb_event_t *event = (kb_event_t *)io_uring_cqe_get_data(cqe);
 
-    kb_event_manager_uds_t *self = event->manager;
+    kb_event_manager_uds_t *self = (kb_event_manager_uds_t *)event->manager;
 
     if (event->event_type == KB_UDS_EVENT_READABLE)
     {
@@ -88,7 +94,7 @@ kb_message_t *event_manager_uds_handle_event(struct io_uring_cqe *cqe)
         {
             return NULL;
         }
-        return transport_uds_message_receive(&self->transport->base);
+        return transport_uds_message_receive(event->manager->transport);
     }
     else if (event->event_type == KB_UDS_EVENT_WRITEABLE)
     {
@@ -98,7 +104,7 @@ kb_message_t *event_manager_uds_handle_event(struct io_uring_cqe *cqe)
             return NULL;
         }
 
-        if (transport_uds_write_messages(&self->transport->base) > 0)
+        if (transport_uds_write_messages(event->manager->transport) > 0)
         {
             event_manager_uds_wait_writeable(self);
         }
