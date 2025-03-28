@@ -34,6 +34,7 @@ set(IO_URING_FUTEXES YES CACHE BOOL "If target platform supports futexes for io_
 
 if(IO_URING_FUTEXES)
     list(APPEND SOURCES
+        src/shmem/allocator.c
         src/shmem/transport_shm.c
         src/shmem/message_shm.c
         src/shmem/message_writer_shm.c

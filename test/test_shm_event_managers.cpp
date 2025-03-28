@@ -10,7 +10,8 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-extern "C" {
+extern "C"
+{
 #include <shmem/transport_shm.h>
 #include <shmem/message_shm.h>
 #include <shmem/message_writer_shm.h>

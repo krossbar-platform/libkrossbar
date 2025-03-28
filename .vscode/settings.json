@@ -92,11 +92,17 @@
         "text_encoding": "cpp",
         "ios": "cpp",
         "valarray": "cpp",
-        "message_writer.h": "c"
+        "message_writer.h": "c",
+        "*.conf": "bitbake",
+        "*.inc": "bitbake"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",
         "-DENABLE_PERFORMANCE_TESTING=ON",
         "-DCMAKE_BUILD_TYPE=Debug"
+    ],
+    "python.autoComplete.extraPaths": [
+        "${workspaceFolder}/sources/poky/bitbake/lib",
+        "${workspaceFolder}/sources/poky/meta/lib"
     ]
 }

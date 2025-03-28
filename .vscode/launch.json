@@ -23,6 +23,28 @@
         {
             "type": "cppdbg",
             "request": "launch",
+            "name": "Krossbar selected test",
+            "program": "${workspaceFolder}/build/test/krossbar_test",
+            "args": [
+                "--gtest_filter=Allocator\\*"
+            ],
+            "cwd": "${workspaceFolder}",
+            "environment": [],
+            "stopAtEntry": false,
+            "externalConsole": false,
+            "MIMode": "gdb",
+            "setupCommands": [
+                {
+                    "description": "Enable pretty-printing for gdb",
+                    "text": "-enable-pretty-printing",
+                    "ignoreFailures": true
+                }
+            ],
+            "preLaunchTask": "C/C++: g++ build active file"
+        },
+        {
+            "type": "cppdbg",
+            "request": "launch",
             "name": "Performance tests",
             "program": "${workspaceFolder}/build/performance/krossbar_performance_test",
             "args": [],
