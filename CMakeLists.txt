@@ -47,7 +47,7 @@ endif()
 # Add the executable
 add_library(${PROJECT_NAME} ${SOURCES})
 
-set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 99)
+set_property(TARGET ${PROJECT_NAME} PROPERTY C_STANDARD 11)
 
 target_compile_definitions(${PROJECT_NAME} PRIVATE _GNU_SOURCE)
 

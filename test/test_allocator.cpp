@@ -15,6 +15,10 @@ TEST(Allocator, TestAllocatorBlockAdding)
     std::array<uint8_t, 1024> memory;
     auto allocator = allocator_create(memory.data(), memory.size(), 128, logger);
     allocator_dump(allocator);
+
+    auto chunk = allocator_alloc(allocator);
+    ASSERT_NE(chunk, nullptr);
+    allocator_dump(allocator);
 }
 
 #endif
