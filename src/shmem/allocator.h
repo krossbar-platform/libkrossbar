@@ -16,22 +16,13 @@ struct kb_block_header_s
 
 typedef struct kb_block_header_s kb_block_header_t;
 
-// Free list structure (used for tracking free blocks)
-struct kb_allocator_list_s
-{
-    size_t head_offset;     // Head of the free list
-    size_t tail_offset;     // Tail of the free list
-};
-
-typedef struct kb_allocator_list_s kb_allocator_list_t;
-
 struct kb_allocator_header_s
 {
     uint32_t futex;                  // Futex for synchronization
     size_t total_size;               // Total size of the shared memory region
     size_t used_size;                // Currently used size
-    kb_allocator_list_t free_blocks; // Free list of blocks
-    kb_allocator_list_t blocks;      // List of all blocks
+    size_t first_block_offset;       // Offset of the first free block
+    size_t last_block_offset;        // Offset of the last free block
 };
 
 typedef struct kb_allocator_header_s kb_allocator_header_t;
@@ -55,18 +46,17 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
  * @return Pointer to the allocated memory, or NULL if allocation failed
  */
 void *allocator_alloc(kb_allocator_t *allocator);
+void allocator_free(kb_allocator_t *allocator, void *ptr);
 void allocator_destroy(kb_allocator_t *allocator);
 
 void allocator_lock(kb_allocator_t *allocator);
 void allocator_unlock(kb_allocator_t *allocator);
-void *allocator_list_head(kb_allocator_t *allocator, kb_allocator_list_t *list);
-void *allocator_list_tail(kb_allocator_t *allocator, kb_allocator_list_t *list);
 size_t allocator_block_offset(kb_allocator_t *allocator, kb_block_header_t *block);
-kb_block_header_t *allocator_get_block(kb_allocator_t *allocator, size_t offset);
+kb_block_header_t *allocator_offset_to_block(kb_allocator_t *allocator, size_t offset);
 
 void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_t *block);
 void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_header_t *block);
-void allocator_split_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t size);
-void allocator_merge_blocks(kb_allocator_t *allocator, kb_block_header_t *block);
+void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t *block);
+void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t actual_size, bool lock);
 
 void allocator_dump(kb_allocator_t *allocator);
