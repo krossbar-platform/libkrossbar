@@ -38,6 +38,13 @@ TEST(Allocator, TestAllocatorBlockAdding)
     allocator_free(allocator, chunk1);
     allocator_dump(allocator);
 
+    auto chunk4 = allocator_alloc(allocator);
+    ASSERT_NE(chunk4, nullptr);
+    allocator_dump(allocator);
+
+    allocator_free(allocator, chunk4);
+    allocator_dump(allocator);
+
     allocator_free(allocator, chunk3);
     allocator_dump(allocator);
 
