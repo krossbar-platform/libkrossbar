@@ -53,6 +53,7 @@ struct kb_allocator_header_s
     uint32_t futex;                  // Futex for synchronization
     size_t total_size;               // Total size of the shared memory region
     size_t free_size;                // Currently used size
+    size_t max_message_size;         // Maximum message size for initial allocations
     size_t next_free_block_offset;   // Offset of the first free block
 };
 
@@ -65,7 +66,6 @@ struct kb_allocator_s
 {
     kb_allocator_header_t *header;   // Header for the shared memory region
     log4c_category_t *logger;        // Logger for debugging
-    size_t max_message_size;         // Maximum message size for initial allocations
 };
 
 typedef struct kb_allocator_s kb_allocator_t;
@@ -80,6 +80,15 @@ typedef struct kb_allocator_s kb_allocator_t;
  * @return New allocator instance
  */
 kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_message_size, log4c_category_t *logger);
+
+/**
+ * @brief Attach to an existing allocator in the shared memory region
+ *
+ * @param memory Shared memory region
+ * @param logger Logger for debugging
+ * @return Allocator instance
+ */
+kb_allocator_t *allocator_attach(void *memory, log4c_category_t *logger);
 
 /**
  * @brief Destroy the allocator and free all resources

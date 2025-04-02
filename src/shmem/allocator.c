@@ -104,7 +104,6 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
     kb_allocator_header_t *alloc_header = (kb_allocator_header_t *)memory;
     allocator->header = alloc_header;
     allocator->logger = logger;
-    allocator->max_message_size = ALIGN(max_message_size);
 
     size_t header_size = ALIGN(sizeof(kb_allocator_header_t));
 
@@ -113,6 +112,7 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
     alloc_header->total_size = total_size - header_size;
     alloc_header->free_size = alloc_header->total_size;
     alloc_header->next_free_block_offset = NULL_BLOCK_OFFSET;
+    alloc_header->max_message_size = ALIGN(max_message_size);
 
     // Initialize the first block
     kb_block_header_t *first_block = (kb_block_header_t*)(memory + header_size);
@@ -121,6 +121,21 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
 
     // Add the block to the free list
     allocator_add_free_block(allocator, first_block);
+
+    return allocator;
+}
+
+kb_allocator_t *allocator_attach(void *memory, log4c_category_t *logger)
+{
+    kb_allocator_t *allocator = (kb_allocator_t *)malloc(sizeof(kb_allocator_t));
+    if (allocator == NULL)
+    {
+        log4c_category_error(logger, "Failed to allocate memory for allocator");
+        return NULL;
+    }
+
+    allocator->header = (kb_allocator_header_t *)memory;
+    allocator->logger = logger;
 
     return allocator;
 }
@@ -195,7 +210,7 @@ void allocator_write_block_tags(kb_allocator_t *allocator, kb_block_header_t *bl
 void *allocator_alloc(kb_allocator_t *allocator)
 {
     // Always allocate the maximum message size initially
-    size_t alloc_size = allocator->max_message_size + BLOCK_HEADER_SIZE;
+    size_t alloc_size = allocator->header->max_message_size + BLOCK_HEADER_SIZE;
 
     allocator_lock(allocator);
 
@@ -347,7 +362,7 @@ void allocator_dump(kb_allocator_t *allocator)
     kb_allocator_header_t *alloc_header = allocator->header;
 
     log4c_category_info(allocator->logger, "Allocator dump:");
-    log4c_category_info(allocator->logger, "  Max message size: %zu", allocator->max_message_size);
+    log4c_category_info(allocator->logger, "  Max message size: %zu", alloc_header->max_message_size);
     log4c_category_info(allocator->logger, "  Total size: %zu", alloc_header->total_size);
     log4c_category_info(allocator->logger, "  Free size: %zu", alloc_header->free_size);
     log4c_category_info(allocator->logger, "  Blocks:");
