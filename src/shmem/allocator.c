@@ -16,15 +16,15 @@
 // Round up to nearest multiple of ALIGNMENT
 #define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))
 
-// No block offset (used for head/tail pointers)
+// No block offset (used for empty lists)
 #define NULL_BLOCK_OFFSET ((size_t)-1)
 
 // Block header size
 #define BLOCK_HEADER_SIZE ALIGN(sizeof(kb_block_header_t))
 // Block footer size
 #define BLOCK_FOOTER_SIZE ALIGN(sizeof(kb_block_footer_t))
-// Minimum block size (including header)
-#define MIN_BLOCK_SIZE (BLOCK_HEADER_SIZE + 64)
+// Minimum block size (including header and footer)
+#define MIN_BLOCK_SIZE (BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE + 64)
 
 // Futex utility functions
 static int futex_wait(uint32_t *uaddr, int val)
@@ -35,6 +35,53 @@ static int futex_wait(uint32_t *uaddr, int val)
 static int futex_wake(uint32_t *uaddr, int count)
 {
     return syscall(SYS_futex, uaddr, FUTEX_WAKE, count, NULL, NULL, 0);
+}
+
+static void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
+{
+    allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_FREE);
+    kb_allocator_header_t *alloc_header = allocator->header;
+
+    size_t block_offset = allocator_block_offset(allocator, block);
+
+    // Put the new block at the head of the free list
+    block->next_free_block_offset = alloc_header->next_free_block_offset;
+    alloc_header->next_free_block_offset = block_offset;
+}
+
+static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
+{
+    kb_allocator_header_t *alloc_header = allocator->header;
+    assert(alloc_header->next_free_block_offset != NULL_BLOCK_OFFSET);
+
+    size_t block_offset = allocator_block_offset(allocator, block);
+
+    // It's the first block in the free list
+    if (alloc_header->next_free_block_offset == block_offset)
+    {
+        alloc_header->next_free_block_offset = block->next_free_block_offset;
+        block->next_free_block_offset = NULL_BLOCK_OFFSET;
+        allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_ALLOCATED);
+        return;
+    }
+
+    // Somewhere in the middle of the list. Let's search
+    kb_block_header_t *current_block = allocator_offset_to_block(allocator, alloc_header->next_free_block_offset);
+    while (current_block != NULL)
+    {
+        // Check if the next block is the one we're looking for
+        if (current_block->next_free_block_offset == block_offset)
+        {
+            current_block->next_free_block_offset = block->next_free_block_offset;
+            block->next_free_block_offset = NULL_BLOCK_OFFSET;
+            allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_ALLOCATED);
+            return;
+        }
+
+        current_block = allocator_offset_to_block(allocator, current_block->next_free_block_offset);
+    }
+
+    assert(false);
 }
 
 kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_message_size, log4c_category_t *logger)
@@ -135,7 +182,7 @@ kb_block_header_t *allocator_offset_to_block(kb_allocator_t *allocator, size_t o
     return (kb_block_header_t *)((char *)allocator->header + offset);
 }
 
-void *allocator_write_block_tags(kb_allocator_t *allocator, kb_block_header_t *block, size_t size, kb_block_type_t type)
+void allocator_write_block_tags(kb_allocator_t *allocator, kb_block_header_t *block, size_t size, kb_block_type_t type)
 {
     block->size = size;
     block->type = type;
@@ -211,54 +258,7 @@ void allocator_free(kb_allocator_t *allocator, void *ptr)
     allocator_unlock(allocator);
 }
 
-void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
-{
-    allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_FREE);
-    kb_allocator_header_t *alloc_header = allocator->header;
-
-    size_t block_offset = allocator_block_offset(allocator, block);
-
-    // Put the new block at the head of the free list
-    block->next_free_block_offset = alloc_header->next_free_block_offset;
-    alloc_header->next_free_block_offset = block_offset;
-}
-
-void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
-{
-    kb_allocator_header_t *alloc_header = allocator->header;
-    assert(alloc_header->next_free_block_offset != NULL_BLOCK_OFFSET);
-
-    size_t block_offset = allocator_block_offset(allocator, block);
-
-    // It's the first block in the free list
-    if (alloc_header->next_free_block_offset == block_offset)
-    {
-        alloc_header->next_free_block_offset = block->next_free_block_offset;
-        block->next_free_block_offset = NULL_BLOCK_OFFSET;
-        allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_ALLOCATED);
-        return;
-    }
-
-    // Somewhere in the middle of the list. Let's search
-    kb_block_header_t *current_block = allocator_offset_to_block(allocator, alloc_header->next_free_block_offset);
-    while (current_block != NULL)
-    {
-        // Check if the next block is the one we're looking for
-        if (current_block->next_free_block_offset == block_offset)
-        {
-            current_block->next_free_block_offset = block->next_free_block_offset;
-            block->next_free_block_offset = NULL_BLOCK_OFFSET;
-            allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_ALLOCATED);
-            return;
-        }
-
-        current_block = allocator_offset_to_block(allocator, current_block->next_free_block_offset);
-    }
-
-    assert(false);
-}
-
-kb_block_header_t *allocator_prev_adjacent_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
+static kb_block_header_t *allocator_prev_adjacent_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
     kb_block_footer_t *prev_block_footer = (kb_block_footer_t *)((char *)block - BLOCK_FOOTER_SIZE);
     if (prev_block_footer->type == KB_BLOCK_TAG_FREE)
@@ -269,7 +269,7 @@ kb_block_header_t *allocator_prev_adjacent_free_block(kb_allocator_t *allocator,
     return NULL;
 }
 
-kb_block_header_t *allocator_next_adjacent_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
+static kb_block_header_t *allocator_next_adjacent_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
     kb_block_header_t *next_block = allocator_offset_to_block(allocator, allocator_block_offset(allocator, block) + block->size);
     if (next_block->type == KB_BLOCK_TAG_FREE)
@@ -340,6 +340,10 @@ void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, s
 
 void allocator_dump(kb_allocator_t *allocator)
 {
+#if 1
+    return;
+#endif
+
     kb_allocator_header_t *alloc_header = allocator->header;
 
     log4c_category_info(allocator->logger, "Allocator dump:");
