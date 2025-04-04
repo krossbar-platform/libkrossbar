@@ -58,8 +58,6 @@ TEST(Transport, TestShmemTransport) {
 
     message_send(message_writer);
 
-    ASSERT_EQ(arena->header->write_offset, 37 + sizeof(kb_message_header_t));
-    ASSERT_EQ(arena->header->read_offset, 0);
     ASSERT_EQ(arena->header->num_messages, 1);
 
     auto transport_reader = transport_shm_init("test", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
@@ -137,9 +135,6 @@ TEST(Transport, TestShmemTransport) {
 
     ASSERT_EQ(transport_message_receive(transport_writer), nullptr);
 
-    ASSERT_EQ(arena->header->read_offset, 0);
-    ASSERT_EQ(arena->header->write_offset, 0);
-
     transport_destroy(transport_writer);
     transport_destroy(transport_reader);
 }
@@ -156,24 +151,19 @@ TEST(Transport, TestShmemCycle)
     auto transport_writer = (kb_transport_shm_t *)transport_shm_init("test", map_fd_0, map_fd_1, MESSAGE_SIZE, &ring, logger);
     auto arena = &transport_writer->write_arena;
 
-    ASSERT_EQ(arena->header->write_offset, 0);
-
     auto message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
-    ASSERT_EQ(arena->header->write_offset, 144);
     ASSERT_EQ(arena->header->num_messages, 1);
 
     message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
-    ASSERT_EQ(arena->header->write_offset, 288);
     ASSERT_EQ(arena->header->num_messages, 2);
 
     message_writer = transport_message_init(&transport_writer->base);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
-    ASSERT_EQ(arena->header->write_offset, 432);
     ASSERT_EQ(arena->header->num_messages, 3);
 
     message_writer = transport_message_init(&transport_writer->base);
@@ -405,7 +395,6 @@ TEST(Transport, TestShmemMessageCancel)
     auto shm_writer = (kb_message_writer_shm_t *)message_writer;
     message_cancel(message_writer);
 
-    ASSERT_EQ(arena->header->write_offset, 0);
     ASSERT_EQ(arena->header->num_messages, 0);
 
     transport_destroy(transport_writer);

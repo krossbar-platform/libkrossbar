@@ -10,18 +10,14 @@
 
 #include <liburing.h>
 
+#include "common.h"
 #include "message_writer_shm.h"
 #include "message_shm.h"
 
 #define RING_QUEUE_DEPTH 32
 
-enum ring_op_e
-{
-    RING_OP_SEND,
-    RING_OP_RECV
-};
-
-typedef enum ring_op_e ring_op_t;
+#define MESSAGE_HEADER_SIZE (ALIGN(sizeof(kb_message_header_t)))
+#define ARENA_HEADER_SIZE (ALIGN(sizeof(kb_arena_header_t)))
 
 int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_category_t *logger)
 {
@@ -33,7 +29,7 @@ int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_cat
         return -1;
     }
 
-    size_t alloc_size = buffer_size + sizeof(kb_arena_header_t);
+    size_t alloc_size = buffer_size + ARENA_HEADER_SIZE;
     // Set the size
     if (ftruncate(result_fd, alloc_size) == -1)
     {
@@ -42,7 +38,7 @@ int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_cat
     }
 
     // Map the shared memory to set the header up
-    void *map_addr = mmap(NULL, sizeof(kb_arena_header_t), PROT_READ | PROT_WRITE,
+    void *map_addr = mmap(NULL, ARENA_HEADER_SIZE, PROT_READ | PROT_WRITE,
                           MAP_SHARED, result_fd, 0);
     if (map_addr == MAP_FAILED)
     {
@@ -52,26 +48,10 @@ int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_cat
     }
 
     kb_arena_header_t *arena_header = map_addr;
-    arena_header->write_offset = 0;
-    arena_header->read_offset = 0;
+    arena_header->first_message_offset = NULL_OFFSET;
+    arena_header->last_message_offset = NULL_OFFSET;
     arena_header->size = buffer_size;
     atomic_init(&arena_header->num_messages, 0);
-
-    if (sem_init(&arena_header->write_sem, 1, 1) == -1)
-    {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
-        munmap(map_addr, sizeof(kb_arena_header_t));
-        close(result_fd);
-        return -1;
-    }
-
-    if (sem_init(&arena_header->read_sem, 1, 1) == -1)
-    {
-        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "sem_init failed: %s", strerror(errno));
-        munmap(map_addr, sizeof(kb_arena_header_t));
-        close(result_fd);
-        return -1;
-    }
 
     return result_fd;
 }
@@ -85,7 +65,7 @@ size_t transport_shm_get_mapping_size(int map_fd, log4c_category_t *logger)
         return 0;
     }
 
-    return stat.st_size - sizeof(kb_arena_header_t);
+    return stat.st_size - ARENA_HEADER_SIZE;
 }
 
 kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
@@ -101,8 +81,6 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "malloc failed");
         return NULL;
     }
-
-    transport->max_message_size = max_message_size;
 
     transport->base.name = strdup(name);
     transport->base.logger = logger;
@@ -120,7 +98,7 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
 
     transport->base.event_manager = (kb_event_manager_t *)event_manager;
 
-    // Map read shared memory
+    // Map receiving memory mapping
     size_t read_mapping_size = transport_shm_get_mapping_size(read_fd, logger);
     void *map_read_addr = mmap(NULL, read_mapping_size, PROT_READ | PROT_WRITE,
                                MAP_SHARED, read_fd, 0);
@@ -131,11 +109,20 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
         return NULL;
     }
 
-    transport->read_arena.addr = map_read_addr + sizeof(kb_arena_header_t);
-    transport->read_arena.header = (kb_arena_header_t *)map_read_addr;
-    transport->read_arena.shm_fd = read_fd;
+    kb_allocator_t *read_allocator = allocator_attach(map_read_addr, logger);
+    if (read_allocator == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to attach to read allocator");
+        transport_shm_destroy(&transport->base);
+        return NULL;
+    }
 
-    // Map write shared memory
+    transport->read_arena.header = (kb_arena_header_t *)map_read_addr;
+    transport->read_arena.allocator = read_allocator;
+    transport->read_arena.shm_fd = read_fd;
+    transport->max_message_size = max_message_size;
+
+    // Map sending memory mapping
     size_t write_mapping_size = transport_shm_get_mapping_size(write_fd, logger);
 
     if (write_mapping_size < max_message_size)
@@ -155,8 +142,17 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
         return NULL;
     }
 
-    transport->write_arena.addr = map_write_addr + sizeof(kb_arena_header_t);
+    size_t mesage_allocation_size = max_message_size + ALIGN(MESSAGE_HEADER_SIZE);
+    kb_allocator_t *write_allocator = allocator_create(map_write_addr, write_mapping_size, mesage_allocation_size, logger);
+    if (write_allocator == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to create write allocator");
+        transport_shm_destroy(&transport->base);
+        return NULL;
+    }
+
     transport->write_arena.header = (kb_arena_header_t *)map_write_addr;
+    transport->write_arena.allocator = write_allocator;
     transport->write_arena.shm_fd = write_fd;
 
     log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` initialized", name);
@@ -164,62 +160,44 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     return (kb_transport_t *)transport;
 }
 
-kb_message_writer_t* transport_shm_message_init(kb_transport_t *transport)
+kb_message_header_t *transport_message_from_offset(kb_arena_t *arena, size_t offset)
 {
-    kb_transport_shm_t *self = (kb_transport_shm_t*)transport;
+    if (offset == NULL_OFFSET)
+    {
+        return NULL;
+    }
+
+    return (kb_message_header_t *)(arena->header + offset);
+}
+
+size_t transport_message_offset(kb_arena_t *arena, kb_message_header_t *message_header)
+{
+    if (message_header == NULL)
+    {
+        return NULL_OFFSET;
+    }
+
+    return (char *)message_header - (char *)arena->header;
+}
+
+kb_message_writer_t *transport_shm_message_init(kb_transport_t *transport)
+{
+    kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
+
+    void *memory_chunk = allocator_alloc(self->write_arena.allocator);
+    if (memory_chunk == NULL)
+    {
+        return NULL;
+    }
 
     kb_arena_t *arena = &self->write_arena;
     kb_arena_header_t *arena_header = arena->header;
 
-    size_t memory_needed = self->max_message_size + sizeof(kb_message_header_t);
-
-    sem_wait(&arena_header->write_sem);
-    void *memory_chunk = NULL;
-
-    // In case the reader read all the messages, we reset last message pointer
-    if (atomic_load(&arena_header->num_messages) == 0)
-    {
-        self->last_message = NULL;
-    }
-
-    // Full ring
-    if (arena_header->write_offset == arena_header->read_offset && self->last_message != NULL)
-    {
-        sem_post(&arena_header->write_sem);
-        return NULL;
-    }
-    // Write position in at the end of the ring (can be empty if both values == arena->addr)
-    else if (arena_header->write_offset >= arena_header->read_offset)
-    {
-        // Check if we have enough space to write the message at the end of the region
-        if (arena_header->size - arena_header->write_offset >= memory_needed)
-        {
-            memory_chunk = arena->addr + arena_header->write_offset;
-        }
-        // No space available at the end of the region. Try from the start
-        else
-        {
-            arena_header->write_offset = 0;
-            sem_post(&arena_header->write_sem);
-            return transport_shm_message_init(transport);
-        }
-    }
-    // Write position is in the beginning of the region. Try to fit the message before the ring head
-    else if (arena_header->read_offset - arena_header->write_offset >= memory_needed)
-    {
-        memory_chunk = arena->addr + arena_header->write_offset;
-    }
-    else
-    {
-        sem_post(&arena_header->write_sem);
-        return NULL;
-    }
-
-    kb_message_header_t *message_header = (kb_message_header_t*)memory_chunk;
+    kb_message_header_t *message_header = (kb_message_header_t *)memory_chunk;
     message_header->size = self->max_message_size;
-    message_header->next_message_offset = -1;
+    message_header->next_message_offset = NULL_OFFSET;
 
-    kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, memory_chunk + sizeof(kb_message_header_t));
+    kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, memory_chunk + MESSAGE_HEADER_SIZE);
     return &writer->base;
 }
 
@@ -231,25 +209,33 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     kb_arena_t *arena = &self->write_arena;
     kb_arena_header_t *arena_header = arena->header;
 
-    // Shrink the memory region to needed size
+    // Locking here also prevents from reading the mesage list
+    allocator_lock(arena->allocator);
+
+    // Release extra memory
     kb_message_header_t *message_header = shm_writer->header;
     message_header->size = writer_message_size(writer);
+    allocator_trim_block(arena->allocator, (kb_block_header_t *)(message_header + MESSAGE_HEADER_SIZE), message_header->size - MESSAGE_HEADER_SIZE, false);
 
-    // Expand the ring by appending message to it
-    if (self->last_message != NULL)
+    size_t message_offset = transport_message_offset(arena, message_header);
+
+    // Append mesage to the messages list
+    size_t last_message_offset = arena_header->last_message_offset;
+    if (last_message_offset != NULL_OFFSET)
     {
-        self->last_message->next_message_offset = (void *)message_header - (void *)arena->addr;
+        kb_message_header_t *last_buffered_message = transport_message_from_offset(arena, last_message_offset);
+        last_buffered_message->next_message_offset = message_offset;
+    }
+    else
+    {
+        // No message in the list means we also need to replace the list head
+        arena_header->first_message_offset = message_offset;
     }
 
-    self->last_message = message_header;
-
-    // Move the write offset
-    arena_header->write_offset += message_header->size + sizeof(kb_message_header_t);
+    atomic_store(&arena_header->last_message_offset, message_offset);
+    allocator_unlock(arena->allocator);
 
     uint32_t num_mesages = atomic_fetch_add(&arena_header->num_messages, 1);
-
-    // Allow writing new messages
-    sem_post(&arena_header->write_sem);
     log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "New shmem message in `%s`: %d messages in the buffer", transport->name, num_mesages + 1);
 
     event_manager_shm_signal_new_message((kb_event_manager_shm_t *)transport->event_manager);
@@ -266,15 +252,23 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
         return NULL;
     }
 
-    sem_wait(&arena_header->read_sem);
-    kb_message_header_t *message_header = (kb_message_header_t *)(arena->addr + arena_header->read_offset);
-    if (message_header == NULL)
-    {
-        sem_post(&arena_header->read_sem);
-        return NULL;
-    }
+    allocator_lock(arena->allocator);
+    kb_message_header_t *incoming_message = transport_message_from_offset(arena, arena_header->first_message_offset);
+    // Having NULL here means that the message was already removed by another thread
+    assert(incoming_message != NULL);
 
-    kb_message_shm_t *message = message_shm_init(self, message_header, (char *)message_header + sizeof(kb_message_header_t));
+    // Remove the message from the list
+    arena_header->first_message_offset = incoming_message->next_message_offset;
+    if (arena_header->first_message_offset == NULL_OFFSET)
+    {
+        // No more messages in the list
+        arena_header->last_message_offset = NULL_OFFSET;
+    }
+    allocator_unlock(arena->allocator);
+    uint32_t num_mesages = atomic_fetch_sub(&arena_header->num_messages, 1);
+    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Removed shmem message from `%s`: %d messages in the buffer", transport->name, num_mesages - 1);
+
+    kb_message_shm_t *message = message_shm_init(self, incoming_message, (char *)incoming_message + MESSAGE_HEADER_SIZE);
 
     return &message->base;
 }
@@ -283,29 +277,8 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
 {
     kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
     kb_arena_t *arena = &self->read_arena;
-    kb_arena_header_t *arena_header = arena->header;
 
-    kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
-    kb_message_header_t *message_header = shm_message->header;
-
-    sem_wait(&arena_header->write_sem);
-    if (message_header->next_message_offset != -1)
-    {
-        arena_header->read_offset = message_header->next_message_offset;
-    }
-    else
-    {
-        self->last_message = NULL;
-        arena_header->read_offset = 0;
-
-        arena_header->write_offset = 0;
-    }
-    sem_post(&arena_header->write_sem);
-
-    uint32_t num_mesages = atomic_fetch_sub(&arena_header->num_messages, 1);
-
-    sem_post(&arena_header->read_sem);
-    log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Removed shmem message from `%s`: %d messages in the buffer", transport->name, num_mesages - 1);
+    allocator_free(arena->allocator, (char *)message + MESSAGE_HEADER_SIZE);
 
     return 0;
 }
@@ -321,16 +294,20 @@ void transport_shm_destroy(kb_transport_t *transport)
         free((void *)transport->name);
     }
 
-    if (self->read_arena.addr != NULL)
+    kb_allocator_t *read_allocator = self->read_arena.allocator;
+    if (read_allocator != NULL)
     {
-        munmap(self->read_arena.addr, self->read_arena.header->size + sizeof(kb_arena_header_t));
+        munmap(read_allocator->header - ARENA_HEADER_SIZE, read_allocator->header->total_size + ARENA_HEADER_SIZE);
         close(self->read_arena.shm_fd);
+        allocator_destroy(read_allocator);
     }
 
-    if (self->write_arena.addr != NULL)
+    kb_allocator_t *write_allocator = self->write_arena.allocator;
+    if (write_allocator != NULL)
     {
-        munmap(self->write_arena.addr, self->write_arena.header->size + sizeof(kb_arena_header_t));
+        munmap(write_allocator->header - ARENA_HEADER_SIZE, write_allocator->header->total_size + ARENA_HEADER_SIZE);
         close(self->write_arena.shm_fd);
+        allocator_destroy(write_allocator);
     }
 
     event_manager_shm_destroy((kb_event_manager_shm_t *)transport->event_manager);

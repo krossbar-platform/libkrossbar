@@ -11,13 +11,7 @@
 #include <string.h>
 #include <unistd.h>
 
-// Alignment for all allocations (64-bit)
-#define ALIGNMENT sizeof(void *)
-// Round up to nearest multiple of ALIGNMENT
-#define ALIGN(size) (((size) + (ALIGNMENT - 1)) & ~(ALIGNMENT - 1))
-
-// No block offset (used for empty lists)
-#define NULL_BLOCK_OFFSET ((size_t)-1)
+#include "common.h"
 
 // Block header size
 #define BLOCK_HEADER_SIZE ALIGN(sizeof(kb_block_header_t))
@@ -52,7 +46,7 @@ static void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_
 static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
     kb_allocator_header_t *alloc_header = allocator->header;
-    assert(alloc_header->next_free_block_offset != NULL_BLOCK_OFFSET);
+    assert(alloc_header->next_free_block_offset != NULL_OFFSET);
 
     size_t block_offset = allocator_block_offset(allocator, block);
 
@@ -60,7 +54,7 @@ static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_head
     if (alloc_header->next_free_block_offset == block_offset)
     {
         alloc_header->next_free_block_offset = block->next_free_block_offset;
-        block->next_free_block_offset = NULL_BLOCK_OFFSET;
+        block->next_free_block_offset = NULL_OFFSET;
         allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_ALLOCATED);
         return;
     }
@@ -73,7 +67,7 @@ static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_head
         if (current_block->next_free_block_offset == block_offset)
         {
             current_block->next_free_block_offset = block->next_free_block_offset;
-            block->next_free_block_offset = NULL_BLOCK_OFFSET;
+            block->next_free_block_offset = NULL_OFFSET;
             allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_ALLOCATED);
             return;
         }
@@ -111,12 +105,12 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
     alloc_header->futex = 0;
     alloc_header->total_size = total_size - header_size;
     alloc_header->free_size = alloc_header->total_size;
-    alloc_header->next_free_block_offset = NULL_BLOCK_OFFSET;
+    alloc_header->next_free_block_offset = NULL_OFFSET;
     alloc_header->max_message_size = ALIGN(max_message_size);
 
     // Initialize the first block
     kb_block_header_t *first_block = (kb_block_header_t*)(memory + header_size);
-    first_block->next_free_block_offset = NULL_BLOCK_OFFSET;
+    first_block->next_free_block_offset = NULL_OFFSET;
     allocator_write_block_tags(allocator, first_block, alloc_header->total_size, KB_BLOCK_TAG_FREE);
 
     // Add the block to the free list
@@ -189,7 +183,7 @@ inline size_t allocator_block_offset(kb_allocator_t *allocator, kb_block_header_
 
 kb_block_header_t *allocator_offset_to_block(kb_allocator_t *allocator, size_t offset)
 {
-    if (offset == NULL_BLOCK_OFFSET)
+    if (offset == NULL_OFFSET)
     {
         return NULL;
     }
