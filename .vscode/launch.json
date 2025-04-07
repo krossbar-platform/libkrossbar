@@ -26,7 +26,7 @@
             "name": "Krossbar selected test",
             "program": "${workspaceFolder}/build/test/krossbar_test",
             "args": [
-                "--gtest_filter=Allocator\\*"
+                "--gtest_filter=Transport\\*"
             ],
             "cwd": "${workspaceFolder}",
             "environment": [],

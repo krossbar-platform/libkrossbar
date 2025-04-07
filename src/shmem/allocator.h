@@ -115,22 +115,8 @@ void *allocator_alloc(kb_allocator_t *allocator);
 void allocator_free(kb_allocator_t *allocator, void *ptr);
 
 /**
- * @brief Lock the allocator for free list operations
- * 
- * @param allocator 
- */
-void allocator_lock(kb_allocator_t *allocator);
-
-/**
- * @brief Unlock the allocator after free list operations
- * 
- * @param allocator 
- */
-void allocator_unlock(kb_allocator_t *allocator);
-
-/**
  * @brief Get the offset of a block in the shared memory region
- * 
+ *
  * @param allocator Memory allocator
  * @param block Block header
  * @return Offset of the block
@@ -139,7 +125,7 @@ size_t allocator_block_offset(kb_allocator_t *allocator, kb_block_header_t *bloc
 
 /**
  * @brief Get the block header from an offset
- * 
+ *
  * @param allocator Memory allocator
  * @param offset Block offset
  * @return A pointer to the block header
@@ -148,7 +134,7 @@ kb_block_header_t *allocator_offset_to_block(kb_allocator_t *allocator, size_t o
 
 /**
  * @brief Write block header and footer tags
- * 
+ *
  * @param allocator Memory allocator
  * @param block A block
  * @param size Block size
@@ -159,7 +145,7 @@ void allocator_write_block_tags(kb_allocator_t *allocator, kb_block_header_t *bl
 
 /**
  * @brief Coallesce adjacent free blocks
- * 
+ *
  * @param allocator Memory allocator
  * @param block A block
  */
@@ -167,7 +153,7 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
 
 /**
  * @brief Trim an allocated block to a new size
- * 
+ *
  * @param allocator Memory allocator
  * @param block Allocated block
  * @param new_size New size for the block
@@ -176,8 +162,18 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
 void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t actual_size, bool lock);
 
 /**
+ * @brief Trim an allocation owned by the user to a new size
+ *
+ * @param allocator Memory allocator
+ * @param ptr Pointer to the allocated memory
+ * @param new_size New size for the block
+ * @param lock Lock the allocator for the operation
+ */
+void allocator_trim_allocation(kb_allocator_t *allocator, void *ptr, size_t new_size);
+
+/**
  * @brief Dump the allocator state for debugging
- * 
+ *
  * @param allocator Memory allocator
  */
 void allocator_dump(kb_allocator_t *allocator);

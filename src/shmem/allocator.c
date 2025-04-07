@@ -3,15 +3,14 @@
 #include <assert.h>
 #include <errno.h>
 #include <limits.h>
-#include <linux/futex.h>
 #include <stdlib.h>
-#include <sys/syscall.h>
 #include <stdatomic.h>
 #include <stdbool.h>
 #include <string.h>
-#include <unistd.h>
 
 #include "common.h"
+
+#define TRACE_ALLOCATOR 1
 
 // Block header size
 #define BLOCK_HEADER_SIZE ALIGN(sizeof(kb_block_header_t))
@@ -19,17 +18,6 @@
 #define BLOCK_FOOTER_SIZE ALIGN(sizeof(kb_block_footer_t))
 // Minimum block size (including header and footer)
 #define MIN_BLOCK_SIZE (BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE + 64)
-
-// Futex utility functions
-static int futex_wait(uint32_t *uaddr, int val)
-{
-    return syscall(SYS_futex, uaddr, FUTEX_WAIT, val, NULL, NULL, 0);
-}
-
-static int futex_wake(uint32_t *uaddr, int count)
-{
-    return syscall(SYS_futex, uaddr, FUTEX_WAKE, count, NULL, NULL, 0);
-}
 
 static void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
@@ -76,6 +64,43 @@ static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_head
     }
 
     assert(false);
+}
+
+static void allocator_lock(kb_allocator_t *allocator)
+{
+    const uint32_t zero = 0;
+
+    while (true)
+    {
+        // Check if the futex is available
+        if (atomic_compare_exchange_strong(&allocator->header->futex, &zero, 1))
+        {
+            break;
+        }
+
+        // Futex is not available; wait
+        long result = futex_wait(&allocator->header->futex, 1);
+        if (result == -1 && errno != EAGAIN)
+        {
+            log4c_category_error(allocator->logger, "Failed to wait on futex: %s", strerror(errno));
+            exit(1);
+        }
+    }
+}
+
+static void allocator_unlock(kb_allocator_t *allocator)
+{
+    const uint32_t one = 1;
+
+    if (atomic_compare_exchange_strong(&allocator->header->futex, &one, 0))
+    {
+        int result = futex_wake(&allocator->header->futex, INT_MAX);
+        if (result == -1)
+        {
+            log4c_category_error(allocator->logger, "Failed to wake futex: %s", strerror(errno));
+            exit(1);
+        }
+    }
 }
 
 kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_message_size, log4c_category_t *logger)
@@ -139,43 +164,6 @@ void allocator_destroy(kb_allocator_t *allocator)
     free(allocator);
 }
 
-void allocator_lock(kb_allocator_t *allocator)
-{
-    const uint32_t zero = 0;
-
-    while (true)
-    {
-        // Check if the futex is available
-        if (atomic_compare_exchange_strong(&allocator->header->futex, &zero, 1))
-        {
-            break;
-        }
-
-        // Futex is not available; wait
-        long result = futex_wait(&allocator->header->futex, 1);
-        if (result == -1 && errno != EAGAIN)
-        {
-            log4c_category_error(allocator->logger, "Failed to wait on futex: %s", strerror(errno));
-            exit(1);
-        }
-    }
-}
-
-void allocator_unlock(kb_allocator_t *allocator)
-{
-    const uint32_t one = 1;
-
-    if (atomic_compare_exchange_strong(&allocator->header->futex, &one, 0))
-    {
-        int result = futex_wake(&allocator->header->futex, INT_MAX);
-        if (result == -1)
-        {
-            log4c_category_error(allocator->logger, "Failed to wake futex: %s", strerror(errno));
-            exit(1);
-        }
-    }
-}
-
 inline size_t allocator_block_offset(kb_allocator_t *allocator, kb_block_header_t *block)
 {
     return (char *)block - (char *)allocator->header;
@@ -205,6 +193,10 @@ void *allocator_alloc(kb_allocator_t *allocator)
 {
     // Always allocate the maximum message size initially
     size_t alloc_size = allocator->header->max_message_size + BLOCK_HEADER_SIZE;
+
+#if TRACE_ALLOCATOR
+    log4c_category_info(allocator->logger, "New allocation began");
+#endif
 
     allocator_lock(allocator);
 
@@ -242,11 +234,19 @@ void *allocator_alloc(kb_allocator_t *allocator)
 
     allocator_unlock(allocator);
 
+#if TRACE_ALLOCATOR
+    log4c_category_info(allocator->logger, "Allocated block: %zu bytes at %p", best_fit->size, best_fit + BLOCK_HEADER_SIZE);
+#endif
+
     return best_fit + BLOCK_HEADER_SIZE;
 }
 
 void allocator_free(kb_allocator_t *allocator, void *ptr)
 {
+#if TRACE_ALLOCATOR
+    log4c_category_info(allocator->logger, "Freeing block at %p", ptr);
+#endif
+
     assert(ptr != NULL);
     if (ptr == NULL)
     {
@@ -314,6 +314,10 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
 
 void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t new_size, bool lock)
 {
+#if TRACE_ALLOCATOR
+    log4c_category_info(allocator->logger, "Trimming block at %p to %zu bytes", block, new_size);
+#endif
+
     // We only trim allocated blocks
     assert(block->type == KB_BLOCK_TAG_ALLOCATED);
 
@@ -345,6 +349,11 @@ void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, s
     {
         allocator_unlock(allocator);
     }
+}
+
+void allocator_trim_allocation(kb_allocator_t *allocator, void *ptr, size_t new_size)
+{
+    allocator_trim_block(allocator, (kb_block_header_t *)ptr - BLOCK_HEADER_SIZE, new_size + BLOCK_HEADER_SIZE, true);
 }
 
 void allocator_dump(kb_allocator_t *allocator)

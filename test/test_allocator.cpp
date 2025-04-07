@@ -283,24 +283,6 @@ TEST_F(AllocatorTest, TestAllocUntilFull)
     allocator_free(allocator, ptr);
 }
 
-TEST_F(AllocatorTest, TestLockingMechanics)
-{
-    // Basic test to ensure locking doesn't deadlock
-    allocator_lock(allocator);
-
-    // Do some operations while locked
-    kb_block_header_t *block = allocator_offset_to_block(allocator, ALIGN(sizeof(kb_allocator_header_t)));
-    ASSERT_NE(block, nullptr);
-
-    // Unlock
-    allocator_unlock(allocator);
-
-    // Allocate while unlocked
-    void *ptr = allocator_alloc(allocator);
-    ASSERT_NE(ptr, nullptr);
-    allocator_free(allocator, ptr);
-}
-
 TEST_F(AllocatorTest, TestBlockOffset)
 {
     // Get a block and check its offset

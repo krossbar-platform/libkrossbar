@@ -13,6 +13,7 @@ struct kb_arena_header_s
 {
     size_t size;
     uint32_t num_messages;
+    uint32_t futex; // Futex for synchronization
     size_t first_message_offset;
     size_t last_message_offset;
 };
@@ -22,7 +23,7 @@ typedef struct kb_arena_header_s kb_arena_header_t;
 struct kb_arena_s
 {
     kb_arena_header_t *header;
-    kb_allocator_t *allocator; // Also used as a mutex
+    kb_allocator_t *allocator;
     int shm_fd;
 };
 
