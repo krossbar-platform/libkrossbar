@@ -27,7 +27,7 @@ TEST(Transport, TestShmemTransport) {
     auto map_fd_0 = transport_shm_create_mapping("map0", ARENA_SIZE, logger);
     auto map_fd_1 = transport_shm_create_mapping("map1", ARENA_SIZE, logger);
 
-    auto transport_writer = transport_shm_init("test", map_fd_0, map_fd_1, MESSAGE_SIZE, &ring, logger);
+    auto transport_writer = transport_shm_init("test_writer", map_fd_0, map_fd_1, MESSAGE_SIZE, &ring, logger);
     auto shm_transport_writer = (kb_transport_shm_t *)transport_writer;
     auto arena = &shm_transport_writer->write_arena;
 
@@ -60,7 +60,7 @@ TEST(Transport, TestShmemTransport) {
 
     ASSERT_EQ(arena->header->num_messages, 1);
 
-    auto transport_reader = transport_shm_init("test", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
+    auto transport_reader = transport_shm_init("test_reader", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
     auto message = transport_message_receive(transport_reader);
 
     ASSERT_NE(message, nullptr);

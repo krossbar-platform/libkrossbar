@@ -94,7 +94,9 @@
         "valarray": "cpp",
         "message_writer.h": "c",
         "*.conf": "bitbake",
-        "*.inc": "bitbake"
+        "*.inc": "bitbake",
+        "log4c.h": "c",
+        "utlist.h": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",

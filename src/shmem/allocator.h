@@ -115,6 +115,16 @@ void *allocator_alloc(kb_allocator_t *allocator);
 void allocator_free(kb_allocator_t *allocator, void *ptr);
 
 /**
+ * @brief Trim an allocation owned by the user to a new size
+ *
+ * @param allocator Memory allocator
+ * @param ptr Pointer to the allocated memory
+ * @param new_size New size for the block
+ * @param lock Lock the allocator for the operation
+ */
+void allocator_trim(kb_allocator_t *allocator, void *ptr, size_t new_size);
+
+/**
  * @brief Get the offset of a block in the shared memory region
  *
  * @param allocator Memory allocator
@@ -160,16 +170,6 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
  * @param lock Lock the allocator for the operation
  */
 void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t actual_size, bool lock);
-
-/**
- * @brief Trim an allocation owned by the user to a new size
- *
- * @param allocator Memory allocator
- * @param ptr Pointer to the allocated memory
- * @param new_size New size for the block
- * @param lock Lock the allocator for the operation
- */
-void allocator_trim_allocation(kb_allocator_t *allocator, void *ptr, size_t new_size);
 
 /**
  * @brief Dump the allocator state for debugging

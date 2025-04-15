@@ -7,6 +7,7 @@
 #include <log4c.h>
 
 #include "transport_shm.h"
+#include "../utils.h"
 
 kb_event_manager_shm_t *event_manager_shm_create(struct kb_transport_shm_s *transport, struct io_uring *ring, log4c_category_t *logger)
 {
@@ -72,7 +73,7 @@ void event_manager_shm_signal_new_message(kb_event_manager_shm_t *manager)
     kb_transport_shm_t *transport = (kb_transport_shm_t *)manager->base.transport;
     kb_arena_header_t *header = transport->write_arena.header;
 
-    printf("Signalling %p\n", header);
+    log_trace(manager->base.logger, "Signalling %p", &header->num_messages);
     io_uring_prep_futex_wake(sqe, &header->num_messages, 1, FUTEX_BITSET_MATCH_ANY, FUTEX2_SIZE_U32, 0);
 
     int ret = io_uring_submit(ring);
@@ -106,7 +107,7 @@ void event_manager_shm_wait_messages(kb_event_manager_shm_t *manager)
     kb_transport_shm_t *transport = (kb_transport_shm_t *)manager->base.transport;
     kb_arena_header_t *header = transport->read_arena.header;
 
-    printf("Waiting %p\n", header);
+    log_trace(manager->base.logger, "Waiting %p", &header->num_messages);
     io_uring_prep_futex_wait(sqe, &header->num_messages, 0, FUTEX_BITSET_MATCH_ANY, FUTEX2_SIZE_U32, 0);
 
     int ret = io_uring_submit(ring);

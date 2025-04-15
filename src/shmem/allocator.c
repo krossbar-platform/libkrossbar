@@ -9,8 +9,7 @@
 #include <string.h>
 
 #include "common.h"
-
-#define TRACE_ALLOCATOR 1
+#include "../utils.h"
 
 // Block header size
 #define BLOCK_HEADER_SIZE ALIGN(sizeof(kb_block_header_t))
@@ -105,6 +104,13 @@ static void allocator_unlock(kb_allocator_t *allocator)
 
 kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_message_size, log4c_category_t *logger)
 {
+    assert(memory != NULL);
+    assert(logger != NULL);
+    assert(total_size > 0);
+    assert(max_message_size > 0);
+    assert(total_size >= max_message_size);
+
+    log_trace(logger, "Creating allocator at %p", memory);
 
     // Ensure the memory region is large enough for the allocator structure and at least one block
     if (total_size < sizeof(kb_allocator_t) + ALIGN(max_message_size) + sizeof(kb_block_header_t))
@@ -133,6 +139,9 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
     alloc_header->next_free_block_offset = NULL_OFFSET;
     alloc_header->max_message_size = ALIGN(max_message_size);
 
+    log_trace(logger, "Allocator header initialized: total_size=%zu, free_size=%zu, max_message_size=%zu",
+              alloc_header->total_size, alloc_header->free_size, alloc_header->max_message_size);
+
     // Initialize the first block
     kb_block_header_t *first_block = (kb_block_header_t*)(memory + header_size);
     first_block->next_free_block_offset = NULL_OFFSET;
@@ -146,6 +155,11 @@ kb_allocator_t *allocator_create(void *memory, size_t total_size, size_t max_mes
 
 kb_allocator_t *allocator_attach(void *memory, log4c_category_t *logger)
 {
+    assert(memory != NULL);
+    assert(logger != NULL);
+
+    log_trace(logger, "Attaching to allocator at %p", memory);
+
     kb_allocator_t *allocator = (kb_allocator_t *)malloc(sizeof(kb_allocator_t));
     if (allocator == NULL)
     {
@@ -155,6 +169,9 @@ kb_allocator_t *allocator_attach(void *memory, log4c_category_t *logger)
 
     allocator->header = (kb_allocator_header_t *)memory;
     allocator->logger = logger;
+
+    log_trace(logger, "Allocator header attached: total_size=%zu, free_size=%zu, max_message_size=%zu",
+              allocator->header->total_size, allocator->header->free_size, allocator->header->max_message_size);
 
     return allocator;
 }
@@ -192,11 +209,7 @@ void allocator_write_block_tags(kb_allocator_t *allocator, kb_block_header_t *bl
 void *allocator_alloc(kb_allocator_t *allocator)
 {
     // Always allocate the maximum message size initially
-    size_t alloc_size = allocator->header->max_message_size + BLOCK_HEADER_SIZE;
-
-#if TRACE_ALLOCATOR
-    log4c_category_info(allocator->logger, "New allocation began");
-#endif
+    size_t alloc_size = allocator->header->max_message_size + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE;
 
     allocator_lock(allocator);
 
@@ -223,6 +236,8 @@ void *allocator_alloc(kb_allocator_t *allocator)
         return NULL;
     }
 
+    log_trace(allocator->logger, "Allocated block at %zd of %zu bytes", allocator_block_offset(allocator, best_fit), best_fit->size);
+
     // Remove the block from the free list
     allocator_remove_free_block(allocator, best_fit);
     // Split the block if it's too large
@@ -234,19 +249,11 @@ void *allocator_alloc(kb_allocator_t *allocator)
 
     allocator_unlock(allocator);
 
-#if TRACE_ALLOCATOR
-    log4c_category_info(allocator->logger, "Allocated block: %zu bytes at %p", best_fit->size, best_fit + BLOCK_HEADER_SIZE);
-#endif
-
-    return best_fit + BLOCK_HEADER_SIZE;
+    return (char *)best_fit + BLOCK_HEADER_SIZE;
 }
 
 void allocator_free(kb_allocator_t *allocator, void *ptr)
 {
-#if TRACE_ALLOCATOR
-    log4c_category_info(allocator->logger, "Freeing block at %p", ptr);
-#endif
-
     assert(ptr != NULL);
     if (ptr == NULL)
     {
@@ -255,7 +262,8 @@ void allocator_free(kb_allocator_t *allocator, void *ptr)
 
     allocator_lock(allocator);
 
-    kb_block_header_t *block = (kb_block_header_t *)ptr - BLOCK_HEADER_SIZE;
+    kb_block_header_t *block = (kb_block_header_t *)((char *)ptr - BLOCK_HEADER_SIZE);
+    log_trace(allocator->logger, "Freeing block at %zd", allocator_block_offset(allocator, block));
 
     // Update used size
     allocator->header->free_size += block->size;
@@ -314,9 +322,7 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
 
 void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t new_size, bool lock)
 {
-#if TRACE_ALLOCATOR
-    log4c_category_info(allocator->logger, "Trimming block at %p to %zu bytes", block, new_size);
-#endif
+    log_trace(allocator->logger, "Trimming block at %zd to %zu bytes", allocator_block_offset(allocator, block), new_size);
 
     // We only trim allocated blocks
     assert(block->type == KB_BLOCK_TAG_ALLOCATED);
@@ -351,9 +357,9 @@ void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, s
     }
 }
 
-void allocator_trim_allocation(kb_allocator_t *allocator, void *ptr, size_t new_size)
+void allocator_trim(kb_allocator_t *allocator, void *ptr, size_t new_size)
 {
-    allocator_trim_block(allocator, (kb_block_header_t *)ptr - BLOCK_HEADER_SIZE, new_size + BLOCK_HEADER_SIZE, true);
+    allocator_trim_block(allocator, (kb_block_header_t *)((char *)ptr - BLOCK_HEADER_SIZE), new_size + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE, true);
 }
 
 void allocator_dump(kb_allocator_t *allocator)

@@ -8,12 +8,14 @@
 #include <unistd.h>
 #include <string.h>
 #include <stdatomic.h>
+#include <mpack-reader.h>
 
 #include <liburing.h>
 
 #include "common.h"
 #include "message_writer_shm.h"
 #include "message_shm.h"
+#include "../utils.h"
 
 #define RING_QUEUE_DEPTH 32
 
@@ -91,6 +93,8 @@ int transport_shm_create_mapping(const char *name, size_t buffer_size, log4c_cat
     arena_header->size = buffer_size;
     atomic_init(&arena_header->num_messages, 0);
 
+    log_trace(logger, "Shared memory arena `%s` created at %p", name, map_addr);
+
     return result_fd;
 }
 
@@ -147,7 +151,7 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
         return NULL;
     }
 
-    kb_allocator_t *read_allocator = allocator_attach(map_read_addr + ARENA_HEADER_SIZE, logger);
+    kb_allocator_t *read_allocator = allocator_attach((char *)map_read_addr + ARENA_HEADER_SIZE, logger);
     if (read_allocator == NULL)
     {
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to attach to read allocator");
@@ -159,6 +163,8 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     transport->read_arena.allocator = read_allocator;
     transport->read_arena.shm_fd = read_fd;
     transport->max_message_size = max_message_size;
+
+    log_trace(logger, "Shared memory read arena `%s` mapped at %p", name, map_read_addr);
 
     // Map sending memory mapping
     size_t write_mapping_size = transport_shm_get_mapping_size(write_fd, logger);
@@ -180,7 +186,7 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
         return NULL;
     }
 
-    kb_allocator_t *write_allocator = allocator_create(map_write_addr + ARENA_HEADER_SIZE, write_mapping_size - ARENA_HEADER_SIZE,
+    kb_allocator_t *write_allocator = allocator_create((char *)map_write_addr + ARENA_HEADER_SIZE, write_mapping_size - ARENA_HEADER_SIZE,
                                                        max_message_size + MESSAGE_HEADER_SIZE, logger);
     if (write_allocator == NULL)
     {
@@ -193,7 +199,7 @@ kb_transport_t *transport_shm_init(const char *name, int read_fd, int write_fd,
     transport->write_arena.allocator = write_allocator;
     transport->write_arena.shm_fd = write_fd;
 
-    log4c_category_log(logger, LOG4C_PRIORITY_DEBUG, "Shared memory transport `%s` initialized", name);
+    log_trace(logger, "Shared memory write arena `%s` mapped at %p", name, map_write_addr);
 
     return (kb_transport_t *)transport;
 }
@@ -205,8 +211,6 @@ kb_message_header_t *transport_message_from_offset(kb_arena_t *arena, size_t off
         return NULL;
     }
 
-    printf("Arena: %p\n", arena->header);
-
     return (kb_message_header_t *)(arena->header + offset);
 }
 
@@ -216,8 +220,6 @@ size_t transport_message_offset(kb_arena_t *arena, kb_message_header_t *message_
     {
         return NULL_OFFSET;
     }
-
-    printf("Arena: %p\n", arena->header);
 
     return (char *)message_header - (char *)arena->header;
 }
@@ -239,7 +241,9 @@ kb_message_writer_t *transport_shm_message_init(kb_transport_t *transport)
     message_header->size = self->max_message_size;
     message_header->next_message_offset = NULL_OFFSET;
 
-    kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, memory_chunk + MESSAGE_HEADER_SIZE);
+    log_trace(transport->logger, "YOBA OFFSET %zd %zd", transport_message_offset(arena, message_header), MESSAGE_HEADER_SIZE);
+
+    kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, (char *)memory_chunk + MESSAGE_HEADER_SIZE);
     return &writer->base;
 }
 
@@ -250,11 +254,14 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     kb_arena_t *arena = &self->write_arena;
     kb_arena_header_t *arena_header = arena->header;
+    log_trace(transport->logger, "WRITE Arena header data: %zd %zd %zd", arena_header->size, arena_header->first_message_offset, arena_header->last_message_offset);
 
     // Release extra memory
     kb_message_header_t *message_header = shm_writer->header;
     message_header->size = writer_message_size(writer);
-    allocator_trim_allocation(arena->allocator, message_header, message_header->size + MESSAGE_HEADER_SIZE);
+    allocator_trim(arena->allocator, message_header, message_header->size + MESSAGE_HEADER_SIZE);
+    log_trace(transport->logger, "YOBA %zd %zd %zd", message_header->size + MESSAGE_HEADER_SIZE, message_header->next_message_offset,
+              ALIGN(sizeof(kb_arena_header_t)) + ALIGN(sizeof(kb_allocator_header_t)) + ALIGN(sizeof(kb_block_header_t)) + ALIGN(sizeof(kb_block_footer_t)) + ALIGN(sizeof(kb_message_header_t)));
 
     size_t message_offset = transport_message_offset(arena, message_header);
 
@@ -272,7 +279,6 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     // The last message pointer will be update after the `if` block
     else
     {
-        printf("Written message offset %zd. Pointer: %p. Size: %zd\n", message_offset, message_header, message_header->size);
         // No message in the list means we also need to replace the list head
         arena_header->first_message_offset = message_offset;
     }
@@ -282,6 +288,8 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
     uint32_t num_mesages = atomic_fetch_add(&arena_header->num_messages, 1);
     log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "New shmem message in `%s`: %d messages in the buffer", transport->name, num_mesages + 1);
+    log_trace(transport->logger, "Written message offset %zd. Pointer: %p. Size: %zd", message_offset, message_header, message_header->size);
+    log_trace(transport->logger, "New mesage list: first: %zd, last: %zd", arena_header->first_message_offset, arena_header->last_message_offset);
 
     event_manager_shm_signal_new_message((kb_event_manager_shm_t *)transport->event_manager);
 }
@@ -291,6 +299,7 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
     kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
     kb_arena_t *arena = &self->read_arena;
     kb_arena_header_t *arena_header = arena->header;
+    log_trace(transport->logger, "READ Arena header data: %zd %zd %zd", arena_header->size, arena_header->first_message_offset, arena_header->last_message_offset);
 
     if (atomic_load(&arena_header->num_messages) == 0)
     {
@@ -298,9 +307,10 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
     }
 
     kb_message_header_t *incoming_message = transport_message_from_offset(arena, arena_header->first_message_offset);
-    printf("Read message offset %zd. Pointer: %p. Size: %zd\n", arena_header->first_message_offset, incoming_message, incoming_message->size);
     // Having NULL here means that the message was already removed by another thread
     assert(incoming_message != NULL);
+
+    log_trace(transport->logger, "Read message offset %zd. Pointer: %p. Size: %zd", arena_header->first_message_offset, incoming_message, incoming_message->size);
 
     arena_lock(arena);
     // Remove the message from the list
@@ -313,7 +323,9 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
 
     arena_unlock(arena);
     uint32_t num_mesages = atomic_fetch_sub(&arena_header->num_messages, 1);
+
     log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "Removed shmem message from `%s`: %d messages in the buffer", transport->name, num_mesages - 1);
+    log_trace(transport->logger, "New mesage list: first: %zd, last: %zd", arena_header->first_message_offset, arena_header->last_message_offset);
 
     kb_message_shm_t *message = message_shm_init(self, incoming_message, (char *)incoming_message + MESSAGE_HEADER_SIZE);
 
@@ -323,8 +335,13 @@ kb_message_t *transport_shm_message_receive(kb_transport_t *transport)
 int transport_shm_message_release(kb_transport_t *transport, kb_message_t *message)
 {
     kb_transport_shm_t *self = (kb_transport_shm_t *)transport;
+    kb_arena_t *arena = &self->read_arena;
 
-    allocator_free(self->read_arena.allocator, (char *)message + MESSAGE_HEADER_SIZE);
+    kb_message_shm_t *shm_message = (kb_message_shm_t *)message;
+    kb_message_header_t *message_header = shm_message->header;
+
+    log_trace(transport->logger, "Releasing message %p with offset %zd", message, transport_message_offset(arena, message_header));
+    allocator_free(arena->allocator, message_header);
 
     return 0;
 }
@@ -343,7 +360,7 @@ void transport_shm_destroy(kb_transport_t *transport)
     kb_allocator_t *read_allocator = self->read_arena.allocator;
     if (read_allocator != NULL)
     {
-        munmap(read_allocator->header - ARENA_HEADER_SIZE, read_allocator->header->total_size + ARENA_HEADER_SIZE);
+        munmap((char *)read_allocator->header - ARENA_HEADER_SIZE, read_allocator->header->total_size + ARENA_HEADER_SIZE);
         close(self->read_arena.shm_fd);
         allocator_destroy(read_allocator);
     }
@@ -351,7 +368,7 @@ void transport_shm_destroy(kb_transport_t *transport)
     kb_allocator_t *write_allocator = self->write_arena.allocator;
     if (write_allocator != NULL)
     {
-        munmap(write_allocator->header - ARENA_HEADER_SIZE, write_allocator->header->total_size + ARENA_HEADER_SIZE);
+        munmap((char *)write_allocator->header - ARENA_HEADER_SIZE, write_allocator->header->total_size + ARENA_HEADER_SIZE);
         close(self->write_arena.shm_fd);
         allocator_destroy(write_allocator);
     }
