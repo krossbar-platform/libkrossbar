@@ -241,8 +241,6 @@ kb_message_writer_t *transport_shm_message_init(kb_transport_t *transport)
     message_header->size = self->max_message_size;
     message_header->next_message_offset = NULL_OFFSET;
 
-    log_trace(transport->logger, "YOBA OFFSET %zd %zd", transport_message_offset(arena, message_header), MESSAGE_HEADER_SIZE);
-
     kb_message_writer_shm_t *writer = message_writer_shm_init(self, message_header, (char *)memory_chunk + MESSAGE_HEADER_SIZE);
     return &writer->base;
 }
@@ -260,8 +258,6 @@ int transport_shm_message_send(kb_transport_t *transport, kb_message_writer_t *w
     kb_message_header_t *message_header = shm_writer->header;
     message_header->size = writer_message_size(writer);
     allocator_trim(arena->allocator, message_header, message_header->size + MESSAGE_HEADER_SIZE);
-    log_trace(transport->logger, "YOBA %zd %zd %zd", message_header->size + MESSAGE_HEADER_SIZE, message_header->next_message_offset,
-              ALIGN(sizeof(kb_arena_header_t)) + ALIGN(sizeof(kb_allocator_header_t)) + ALIGN(sizeof(kb_block_header_t)) + ALIGN(sizeof(kb_block_footer_t)) + ALIGN(sizeof(kb_message_header_t)));
 
     size_t message_offset = transport_message_offset(arena, message_header);
 

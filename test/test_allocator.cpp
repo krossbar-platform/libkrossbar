@@ -59,7 +59,7 @@ protected:
         logger = log4c_category_get("libkrossbar.test");
         // 4KB of memory for testing
         memory.resize(4096);
-        allocator = allocator_create(memory.data(), memory.size(), 128, logger);
+        allocator = allocator_create(memory.data(), memory.size(), 256, logger);
         ASSERT_NE(allocator, nullptr);
     }
 
@@ -121,7 +121,7 @@ TEST_F(AllocatorTest, TestAllocatorCreation)
     // Check that the allocator was created correctly
     ASSERT_NE(allocator, nullptr);
     ASSERT_NE(allocator->header, nullptr);
-    ASSERT_EQ(allocator->header->max_message_size, ALIGN(128));
+    ASSERT_EQ(allocator->header->max_message_size, ALIGN(256));
 
     // Check that the header was initialized correctly
     ASSERT_EQ(allocator->header->futex, 0);
@@ -155,6 +155,26 @@ TEST_F(AllocatorTest, TestBasicAllocation)
     // Verify block is now free
     blocks = getAllBlocks(allocator);
     ASSERT_EQ(blocks[0].type, KB_BLOCK_TAG_FREE);
+}
+
+static constexpr auto TEST_DATA = "Hello, World! This is a test string.";
+
+TEST_F(AllocatorTest, TestDataConsistency)
+{
+    // Basic allocation test
+    void *ptr = allocator_alloc(allocator);
+    size_t test_data_size = strlen(TEST_DATA) + 1; // +1 for null terminator
+    ASSERT_NE(ptr, nullptr);
+
+    // Write data to the allocated block
+    memcpy(ptr, TEST_DATA, test_data_size);
+
+    allocator_trim(allocator, ptr, test_data_size);
+
+    ASSERT_STREQ((char *)ptr, TEST_DATA);
+
+    // Free the allocated memory
+    allocator_free(allocator, ptr);
 }
 
 TEST_F(AllocatorTest, TestMultipleAllocations)

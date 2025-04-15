@@ -322,6 +322,7 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
 
 void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t new_size, bool lock)
 {
+    const char *data = (char *)block + BLOCK_HEADER_SIZE;
     log_trace(allocator->logger, "Trimming block at %zd to %zu bytes", allocator_block_offset(allocator, block), new_size);
 
     // We only trim allocated blocks
@@ -359,7 +360,7 @@ void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, s
 
 void allocator_trim(kb_allocator_t *allocator, void *ptr, size_t new_size)
 {
-    allocator_trim_block(allocator, (kb_block_header_t *)((char *)ptr - BLOCK_HEADER_SIZE), new_size + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE, true);
+    allocator_trim_block(allocator, (kb_block_header_t *)((char *)ptr - BLOCK_HEADER_SIZE), ALIGN(new_size) + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE, true);
 }
 
 void allocator_dump(kb_allocator_t *allocator)
