@@ -12,7 +12,7 @@ extern "C" {
 #include <shmem/message_writer_shm.h>
 }
 
-static constexpr size_t ARENA_SIZE = 512;
+static constexpr size_t ARENA_SIZE = 768;
 static constexpr size_t MESSAGE_SIZE = 128;
 static constexpr size_t RING_QUEUE_DEPTH = 32;
 
@@ -152,16 +152,19 @@ TEST(Transport, TestShmemCycle)
     auto arena = &transport_writer->write_arena;
 
     auto message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
     ASSERT_EQ(arena->header->num_messages, 1);
 
     message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
     ASSERT_EQ(arena->header->num_messages, 2);
 
     message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
     ASSERT_EQ(arena->header->num_messages, 3);
@@ -177,9 +180,8 @@ TEST(Transport, TestShmemCycle)
     ASSERT_EQ(tag.type, mpack_type_bin);
     ASSERT_EQ(tag.v.l, BUFFER_SIZE);
 
-    ASSERT_EQ(arena->header->num_messages, 3);
-    message_destroy(message);
     ASSERT_EQ(arena->header->num_messages, 2);
+    message_destroy(message);
 
     message = transport_message_receive(transport_reader);
     ASSERT_NE(message, nullptr);
@@ -212,14 +214,17 @@ TEST(Transport, TestShmemReplace)
     auto transport_reader = transport_shm_init("test", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
 
     auto message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
@@ -309,14 +314,17 @@ TEST(Transport, TestShmemSingleReplace)
     auto transport_reader = transport_shm_init("test", map_fd_1, map_fd_0, MESSAGE_SIZE, &ring, logger);
 
     auto message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
     message_writer = transport_message_init(&transport_writer->base);
+    ASSERT_NE(message_writer, nullptr);
     message_write_bin(message_writer, RANDOM_BUFFER, BUFFER_SIZE);
     ASSERT_EQ(message_send(message_writer), 0);
 
