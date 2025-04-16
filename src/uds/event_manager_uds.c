@@ -38,6 +38,8 @@ kb_event_manager_uds_t *event_manager_uds_create(struct kb_transport_uds_s *tran
 
 void event_manager_uds_destroy(kb_event_manager_uds_t *manager)
 {
+    assert(manager != NULL);
+
     if (manager)
     {
         free(manager);
@@ -46,6 +48,8 @@ void event_manager_uds_destroy(kb_event_manager_uds_t *manager)
 
 void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 {
+    assert(manager != NULL);
+
     struct io_uring *ring = manager->base.ring;
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
 
@@ -64,6 +68,8 @@ void event_manager_uds_wait_readable(kb_event_manager_uds_t *manager)
 
 void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
 {
+    assert(manager != NULL);
+
     struct io_uring *ring = manager->base.ring;
     struct io_uring_sqe *sqe = io_uring_get_sqe(ring);
 
@@ -82,6 +88,8 @@ void event_manager_uds_wait_writeable(kb_event_manager_uds_t *manager)
 
 kb_message_t *event_manager_uds_handle_event(struct io_uring_cqe *cqe)
 {
+    assert(cqe != NULL);
+
     kb_event_t *event = (kb_event_t *)io_uring_cqe_get_data(cqe);
 
     kb_event_manager_uds_t *self = (kb_event_manager_uds_t *)event->manager;

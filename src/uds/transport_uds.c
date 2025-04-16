@@ -59,6 +59,8 @@ kb_transport_t *transport_uds_init(const char *name, int fd, size_t max_message_
 
 kb_message_writer_t *transport_uds_message_init(kb_transport_t *transport)
 {
+    assert(transport != NULL);
+
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
 
     if (self->out_message_count >= self->max_buffered_messages)
@@ -80,6 +82,9 @@ kb_message_writer_t *transport_uds_message_init(kb_transport_t *transport)
 
 int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *writer)
 {
+    assert(transport != NULL);
+    assert(writer != NULL);
+
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
     kb_message_writer_uds_t *writer_uds = (kb_message_writer_uds_t *)writer;
 
@@ -110,6 +115,8 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
 
 int transport_uds_write_messages(kb_transport_t *transport)
 {
+    assert(transport != NULL);
+
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
 
     out_messages_t *out_message, *tmp;
@@ -159,6 +166,8 @@ int transport_uds_write_messages(kb_transport_t *transport)
 
 kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
 {
+    assert(transport != NULL);
+
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
 
     // Receiving a new message
@@ -210,6 +219,9 @@ kb_message_t *transport_uds_message_receive(kb_transport_t *transport)
 
 int transport_uds_message_release(kb_transport_t *transport, kb_message_t *message)
 {
+    assert(transport != NULL);
+    assert(message != NULL);
+
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
 
     free(self->in_message.data);
@@ -221,6 +233,8 @@ int transport_uds_message_release(kb_transport_t *transport, kb_message_t *messa
 
 void transport_uds_destroy(kb_transport_t *transport)
 {
+    assert(transport != NULL);
+
     log4c_category_log(transport->logger, LOG4C_PRIORITY_DEBUG, "UDS transport `%s` destoryed", transport->name);
 
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
