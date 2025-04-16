@@ -5,10 +5,7 @@
 
 #include "mocks/transport_mock.h"
 
-extern "C"
-{
 #include <rpc.h>
-}
 
 TEST(Rpc, TestRpcMessage)
 {

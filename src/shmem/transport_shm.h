@@ -7,6 +7,10 @@
 #include "event_manager_shm.h"
 #include "allocator.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct kb_message_writer_shm_s;
 
 /**
@@ -150,3 +154,7 @@ int transport_shm_message_release(kb_transport_t *transport, kb_message_t *messa
  * @param transport Transport to destroy
  */
 void transport_shm_destroy(kb_transport_t *transport);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

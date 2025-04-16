@@ -8,6 +8,10 @@
 
 #include "error.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct mpack_writer_t;
 
 struct kb_message_writer_s
@@ -304,4 +308,8 @@ kb_message_error_t message_complete_array(kb_message_writer_t *writer);
     message_write_cstr(writer, key);                  \
     message_write(writer, value);                     \
 } while (0)
+#endif
+
+#ifdef __cplusplus
+} // extern "C"
 #endif

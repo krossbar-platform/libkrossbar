@@ -3,6 +3,10 @@
 #include "message_writer.h"
 #include "transport_shm.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Shared memory implementation of message writer
  */
@@ -41,3 +45,7 @@ int message_writer_shm_send(kb_message_writer_t *writer);
  * @param writer Message writer to cancel
  */
 void message_writer_shm_cancel(kb_message_writer_t *writer);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

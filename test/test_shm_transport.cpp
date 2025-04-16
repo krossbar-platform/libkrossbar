@@ -6,11 +6,9 @@
 #include <liburing.h>
 #include <log4c.h>
 
-extern "C" {
 #include <shmem/transport_shm.h>
 #include <shmem/message_shm.h>
 #include <shmem/message_writer_shm.h>
-}
 
 static constexpr size_t ARENA_SIZE = 768;
 static constexpr size_t MESSAGE_SIZE = 128;

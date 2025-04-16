@@ -3,6 +3,10 @@
 #include "message.h"
 #include "transport_uds.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Unix Domain Socket implementation of message reader
  */
@@ -33,3 +37,7 @@ kb_message_uds_t *message_uds_init(kb_transport_uds_t *transport,
  * @return 0 on success, negative error code on failure
  */
 int message_uds_clean(kb_message_t *message);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

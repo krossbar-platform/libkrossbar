@@ -3,6 +3,10 @@
 #include "message.h"
 #include "transport_shm.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Shared memory implementation of message reader
  */
@@ -34,3 +38,7 @@ kb_message_shm_t *message_shm_init(kb_transport_shm_t *transport,
  * @return 0 on success, negative error code on failure
  */
 int message_shm_clean(kb_message_t *message);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

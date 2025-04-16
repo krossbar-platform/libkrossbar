@@ -3,6 +3,10 @@
 #include "message.h"
 #include "../event_manager.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct kb_transport_shm_s;
 struct io_uring;
 struct io_uring_cqe;
@@ -57,3 +61,7 @@ void event_manager_shm_signal_new_message(kb_event_manager_shm_t *manager);
  * @return Message associated with the event or NULL if no message is available
  */
 kb_message_t *event_manager_shm_handle_event(struct io_uring_cqe *cqe);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

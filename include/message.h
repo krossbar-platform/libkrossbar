@@ -7,6 +7,10 @@
 #define MPACK_DOUBLE 1
 #include <mpack-common.h>
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 typedef mpack_tag_t kb_message_tag_t;
 
 struct mpack_reader_t;
@@ -63,3 +67,7 @@ kb_message_tag_t message_peek_tag(kb_message_t *message);
  * @throws mpack_error_too_big if the requested size is larger than the buffer size
  */
 const char *message_read_bytes(kb_message_t *message, size_t count);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

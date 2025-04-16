@@ -6,6 +6,10 @@
 #include "transport.h"
 #include "message.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Message type enumeration for RPC communication
  */
@@ -206,3 +210,7 @@ kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *messa
  * @param type Message type
  */
 void rpc_write_message_header(kb_message_writer_t *message, uint64_t id, kb_message_type_t type);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

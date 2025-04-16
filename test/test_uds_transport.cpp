@@ -3,11 +3,9 @@
 #include <gtest/gtest.h>
 #include <liburing.h>
 
-extern "C" {
 #include <uds/transport_uds.h>
 #include <uds/message_uds.h>
 #include <uds/message_writer_uds.h>
-}
 
 static constexpr size_t MESSAGE_SIZE = 128;
 static constexpr size_t MAX_MESSAGE_NUM = 10;

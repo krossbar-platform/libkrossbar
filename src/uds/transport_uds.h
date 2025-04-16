@@ -3,6 +3,10 @@
 #include "event_manager_uds.h"
 #include "../transport.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 struct io_uring;
 
 /**
@@ -120,3 +124,7 @@ int transport_uds_message_release(kb_transport_t *transport, kb_message_t *messa
  * @param transport Transport to destroy
  */
 void transport_uds_destroy(kb_transport_t *transport);
+
+#ifdef __cplusplus
+} // extern "C"
+#endif

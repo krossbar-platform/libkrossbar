@@ -7,14 +7,12 @@
 #include <unistd.h>
 #include <fcntl.h>
 
-extern "C" {
 #include <shmem/transport_shm.h>
 #include <shmem/message_shm.h>
 #include <shmem/message_writer_shm.h>
 #include <uds/transport_uds.h>
 #include <uds/message_uds.h>
 #include <uds/message_writer_uds.h>
-}
 
 static constexpr size_t ARENA_SIZE = 512;
 static constexpr size_t MESSAGE_SIZE = 128;

@@ -6,6 +6,10 @@
 #include "message_writer.h"
 #include "message.h"
 
+#ifdef __cplusplus
+extern "C" {
+#endif
+
 /**
  * @brief Transport interface for message passing
  */
@@ -80,3 +84,7 @@ inline void transport_destroy(kb_transport_t *transport)
 {
     transport->destroy(transport);
 }
+
+#ifdef __cplusplus
+} // extern "C"
+#endif
