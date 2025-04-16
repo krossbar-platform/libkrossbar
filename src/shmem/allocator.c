@@ -20,6 +20,9 @@
 
 static void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
+    assert(allocator != NULL);
+    assert(block != NULL);
+
     allocator_write_block_tags(allocator, block, block->size, KB_BLOCK_TAG_FREE);
     kb_allocator_header_t *alloc_header = allocator->header;
 
@@ -32,6 +35,9 @@ static void allocator_add_free_block(kb_allocator_t *allocator, kb_block_header_
 
 static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
+    assert(allocator != NULL);
+    assert(block != NULL);
+
     kb_allocator_header_t *alloc_header = allocator->header;
     assert(alloc_header->next_free_block_offset != NULL_OFFSET);
 
@@ -67,6 +73,8 @@ static void allocator_remove_free_block(kb_allocator_t *allocator, kb_block_head
 
 static void allocator_lock(kb_allocator_t *allocator)
 {
+    assert(allocator != NULL);
+
     const uint32_t zero = 0;
 
     while (true)
@@ -89,6 +97,8 @@ static void allocator_lock(kb_allocator_t *allocator)
 
 static void allocator_unlock(kb_allocator_t *allocator)
 {
+    assert(allocator != NULL);
+
     const uint32_t one = 1;
 
     if (atomic_compare_exchange_strong(&allocator->header->futex, &one, 0))
@@ -178,36 +188,50 @@ kb_allocator_t *allocator_attach(void *memory, log4c_category_t *logger)
 
 void allocator_destroy(kb_allocator_t *allocator)
 {
+    assert(allocator != NULL);
+
     free(allocator);
 }
 
 inline size_t allocator_block_offset(kb_allocator_t *allocator, kb_block_header_t *block)
 {
+    assert(allocator != NULL);
+    assert(block != NULL);
+
     return (char *)block - (char *)allocator->header;
 }
 
 kb_block_header_t *allocator_offset_to_block(kb_allocator_t *allocator, size_t offset)
 {
+    assert(allocator != NULL);
+    assert(offset == NULL_OFFSET ? true : offset < allocator->header->total_size && offset > 0 && offset % ALIGNMENT == 0);
+
     if (offset == NULL_OFFSET)
     {
         return NULL;
     }
 
-    return (kb_block_header_t *)((char *)allocator->header + offset);
+    return OFFSET_POINTER(allocator->header, offset);
 }
 
 void allocator_write_block_tags(kb_allocator_t *allocator, kb_block_header_t *block, size_t size, kb_block_type_t type)
 {
+    assert(allocator != NULL);
+    assert(block != NULL);
+    assert(size > 0);
+
     block->size = size;
     block->type = type;
 
-    kb_block_footer_t *footer = (kb_block_footer_t *)((char *)block + size - BLOCK_FOOTER_SIZE);
+    kb_block_footer_t *footer = OFFSET_POINTER(block, size - BLOCK_FOOTER_SIZE);
     footer->size = size;
     footer->type = type;
 }
 
 void *allocator_alloc(kb_allocator_t *allocator)
 {
+    assert(allocator != NULL);
+
     // Always allocate the maximum message size initially
     size_t alloc_size = allocator->header->max_message_size + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE;
 
@@ -249,12 +273,14 @@ void *allocator_alloc(kb_allocator_t *allocator)
 
     allocator_unlock(allocator);
 
-    return (char *)best_fit + BLOCK_HEADER_SIZE;
+    return OFFSET_POINTER(best_fit, BLOCK_HEADER_SIZE);
 }
 
 void allocator_free(kb_allocator_t *allocator, void *ptr)
 {
+    assert(allocator != NULL);
     assert(ptr != NULL);
+
     if (ptr == NULL)
     {
         return;
@@ -262,7 +288,7 @@ void allocator_free(kb_allocator_t *allocator, void *ptr)
 
     allocator_lock(allocator);
 
-    kb_block_header_t *block = (kb_block_header_t *)((char *)ptr - BLOCK_HEADER_SIZE);
+    kb_block_header_t *block = OFFSET_POINTER(ptr, -BLOCK_HEADER_SIZE);
     log_trace(allocator->logger, "Freeing block at %zd", allocator_block_offset(allocator, block));
 
     // Update used size
@@ -277,7 +303,10 @@ void allocator_free(kb_allocator_t *allocator, void *ptr)
 
 static kb_block_header_t *allocator_prev_adjacent_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
-    kb_block_footer_t *prev_block_footer = (kb_block_footer_t *)((char *)block - BLOCK_FOOTER_SIZE);
+    assert(allocator != NULL);
+    assert(block != NULL);
+
+    kb_block_footer_t *prev_block_footer = OFFSET_POINTER(block, -BLOCK_FOOTER_SIZE);
     if (prev_block_footer->type == KB_BLOCK_TAG_FREE)
     {
         return allocator_offset_to_block(allocator, allocator_block_offset(allocator, block) - prev_block_footer->size);
@@ -288,6 +317,9 @@ static kb_block_header_t *allocator_prev_adjacent_free_block(kb_allocator_t *all
 
 static kb_block_header_t *allocator_next_adjacent_free_block(kb_allocator_t *allocator, kb_block_header_t *block)
 {
+    assert(allocator != NULL);
+    assert(block != NULL);
+
     kb_block_header_t *next_block = allocator_offset_to_block(allocator, allocator_block_offset(allocator, block) + block->size);
     if (next_block->type == KB_BLOCK_TAG_FREE)
     {
@@ -300,6 +332,8 @@ static kb_block_header_t *allocator_next_adjacent_free_block(kb_allocator_t *all
 // Try to coalesce a block with adjacent free blocks
 void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t *block)
 {
+    assert(allocator != NULL);
+    assert(block != NULL);
     assert(block->type == KB_BLOCK_TAG_FREE);
 
     kb_block_header_t *prev_block = allocator_prev_adjacent_free_block(allocator, block);
@@ -322,7 +356,11 @@ void allocator_coalesce_free_blocks(kb_allocator_t *allocator, kb_block_header_t
 
 void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, size_t new_size, bool lock)
 {
-    const char *data = (char *)block + BLOCK_HEADER_SIZE;
+    assert(allocator != NULL);
+    assert(block != NULL);
+    assert(new_size > 0);
+    assert(new_size % ALIGNMENT == 0);
+
     log_trace(allocator->logger, "Trimming block at %zd to %zu bytes", allocator_block_offset(allocator, block), new_size);
 
     // We only trim allocated blocks
@@ -360,7 +398,13 @@ void allocator_trim_block(kb_allocator_t *allocator, kb_block_header_t *block, s
 
 void allocator_trim(kb_allocator_t *allocator, void *ptr, size_t new_size)
 {
-    allocator_trim_block(allocator, (kb_block_header_t *)((char *)ptr - BLOCK_HEADER_SIZE), ALIGN(new_size) + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE, true);
+    assert(allocator != NULL);
+    assert(ptr != NULL);
+    assert(new_size > 0);
+
+    size_t total_size = ALIGN(new_size) + BLOCK_HEADER_SIZE + BLOCK_FOOTER_SIZE;
+    kb_block_header_t *block = OFFSET_POINTER(ptr, -BLOCK_HEADER_SIZE);
+    allocator_trim_block(allocator, block, total_size, true);
 }
 
 void allocator_dump(kb_allocator_t *allocator)
