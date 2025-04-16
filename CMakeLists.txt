@@ -80,6 +80,15 @@ add_custom_target(run
     WORKING_DIRECTORY ${CMAKE_PROJECT_DIR}
 )
 
+add_custom_target(analyze
+    COMMAND scan-build --use-cc=${CMAKE_C_COMPILER}
+    --use-c++=${CMAKE_CXX_COMPILER}
+    -o analysis_results
+    ninja
+    WORKING_DIRECTORY ${CMAKE_BINARY_DIR}
+    COMMENT "Running static analysis..."
+)
+
 if(ENABLE_TESTING)
     include(CTest)
     add_subdirectory(test)
