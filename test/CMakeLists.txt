@@ -13,18 +13,11 @@ add_dependencies(${BINARY} ${PROJECT_NAME})
 
 target_link_libraries(${BINARY} PRIVATE
     ${PROJECT_NAME}
-    ${GTEST_LIBRARIES}
 )
-
-target_link_directories(${BINARY} PRIVATE
-    ${CMAKE_BINARY_DIR}
-    ${GTEST_LIBRARY_DIRS})
 
 target_include_directories(${BINARY} PRIVATE
     "${CMAKE_SOURCE_DIR}/include"
     "${CMAKE_SOURCE_DIR}/src"
-    ${GTEST_INCLUDE_DIRS}
-    ${UTHASH_INCLUDE_DIRS}
 )
 
 include(GoogleTest)

@@ -1,6 +1,5 @@
 cmake_minimum_required(VERSION 3.5)
 
-include(MPack.cmake)
 include(UTHash.cmake)
 
 # Set the project name
@@ -14,6 +13,7 @@ find_package(Threads REQUIRED)
 
 pkg_search_module(URING REQUIRED liburing)
 pkg_search_module(LOG4C REQUIRED log4c)
+pkg_search_module(BSON REQUIRED libbson-static-1.0)
 
 if(NOT CMAKE_USE_PTHREADS_INIT)
     message(FATAL_ERROR "Pthreads not found")
@@ -59,18 +59,21 @@ if(MAX_MESSAGE_SIZE)
     target_compile_definitions(${PROJECT_NAME} PRIVATE MAX_MESSAGE_SIZE=${MAX_MESSAGE_SIZE})
 endif()
 
+message(STATUS "Include ${BSON_INCLUDE_DIRS} ${BSON_LIBRARIES}")
+
 target_link_libraries(${PROJECT_NAME} PUBLIC
-    mpack
     Threads::Threads
     ${URING_LIBRARIES}
     ${LOG4C_LIBRARIES}
+    ${BSON_LIBRARIES}
 )
 
-target_include_directories(${PROJECT_NAME} PRIVATE
+target_include_directories(${PROJECT_NAME} PUBLIC
     "include/"
     ${URING_INCLUDE_DIRS}
     ${UTHASH_INCLUDE_DIRS}
     ${LOG4C_INCLUDE_DIRS}
+    ${BSON_INCLUDE_DIRS}
 )
 
 # Add a custom target to run the executable

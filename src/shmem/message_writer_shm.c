@@ -2,8 +2,6 @@
 
 #include <assert.h>
 
-#include <mpack.h>
-
 kb_message_writer_shm_t *message_writer_shm_init(kb_transport_shm_t *transport,
                                                  kb_message_header_t *header,
                                                  char *buffer)

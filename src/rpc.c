@@ -1,6 +1,11 @@
 #include "rpc.h"
 
+#include <assert.h>
+
 #include "message.h"
+
+static const char *ID_KEY = "id";
+static const char *TYPE_KEY = "type";
 
 uint64_t next_id(kb_rpc_t *rpc)
 {
@@ -141,22 +146,33 @@ kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *messa
 {
     kb_call_entry_t *entry = NULL;
 
-    kb_message_tag_t id_tag = message_read_tag(message);
-    if (id_tag.type != mpack_type_uint)
+    bson_t *document = message_get_document(message);
+    if (document == NULL)
     {
-        log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Invalid mesage id type: %d", id_tag.type);
+        log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Failed to get document from message");
         return NULL;
     }
 
-    kb_message_tag_t type_tag = message_read_tag(message);
-    if (type_tag.type != mpack_type_uint)
+    bson_iter_t iter;
+    if (!bson_iter_init(&iter, document))
     {
-        log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Invalid mesage type type: %d", type_tag.type);
+        log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Failed to initialize BSON iterator");
         return NULL;
     }
 
-    uint64_t id = id_tag.v.u;
-    kb_message_type_t type = type_tag.v.u;
+    if (!bson_iter_find(&iter, ID_KEY))
+    {
+        log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Failed to find id in BSON document");
+        return NULL;
+    }
+    uint64_t id = bson_iter_int64(&iter);
+
+    if (!bson_iter_find(&iter, TYPE_KEY))
+    {
+        log4c_category_log(rpc->logger, LOG4C_PRIORITY_ERROR, "Failed to find type in BSON document");
+        return NULL;
+    }
+    kb_message_type_t type = bson_iter_int64(&iter);
 
     log4c_category_log(rpc->logger, LOG4C_PRIORITY_DEBUG, "Received new message with id `%ld` of type `%d`", id, type);
 
@@ -203,8 +219,11 @@ kb_rpc_message_t *rpc_handle_incoming_message(kb_rpc_t *rpc, kb_message_t *messa
 
 void rpc_write_message_header(kb_message_writer_t *message, uint64_t id, kb_message_type_t type)
 {
-    message_write_u64(message, id);
-    message_write_u8(message, type);
+    assert(message != NULL);
+
+    bson_t *json = message_writer_get_document(message);
+    bson_append_int64(json, ID_KEY, -1, id);
+    bson_append_int32(json, TYPE_KEY, -1, type);
 }
 
 void rpc_destroy(kb_rpc_t *rpc)

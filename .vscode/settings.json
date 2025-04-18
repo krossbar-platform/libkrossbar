@@ -96,7 +96,9 @@
         "*.conf": "bitbake",
         "*.inc": "bitbake",
         "log4c.h": "c",
-        "utlist.h": "c"
+        "utlist.h": "c",
+        "message.h": "c",
+        "bson.h": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",

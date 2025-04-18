@@ -1,38 +1,37 @@
 #include "message_writer.h"
 
-#include <mpack.h>
+#include <assert.h>
 
-#define WRITER_FUNC_0(name)                                        \
-    kb_message_error_t message_##name(kb_message_writer_t *writer) \
-    {                                                              \
-        mpack_##name(writer->data_writer);                         \
-        return mpack_writer_error(writer->data_writer);            \
-    }
-
-#define WRITER_FUNC_1(name, val_type)                                              \
-    kb_message_error_t message_##name(kb_message_writer_t *writer, val_type value) \
-    {                                                                              \
-        mpack_##name(writer->data_writer, value);                                  \
-        return mpack_writer_error(writer->data_writer);                            \
-    }
-
-#define WRITER_FUNC_2(name, val1_type, val2_type)                                                      \
-    kb_message_error_t message_##name(kb_message_writer_t *writer, val1_type value1, val2_type value2) \
-    {                                                                                                  \
-        mpack_##name(writer->data_writer, value1, value2);                                             \
-        return mpack_writer_error(writer->data_writer);                                                \
-    }
-
-void message_writer_init(kb_message_writer_t *writer, void *data, size_t size, log4c_category_t *logger)
+static void *kb_bson_realloc(void *mem, size_t num_bytes, void *ctx)
 {
-    writer->data_writer = malloc(sizeof(mpack_writer_t));
-    writer->logger = logger;
-    mpack_writer_init(writer->data_writer, data, size);
+    return NULL;
 }
 
-size_t writer_message_size(kb_message_writer_t* writer)
+void message_writer_init(kb_message_writer_t *writer, uint8_t *data, size_t size, log4c_category_t *logger)
 {
-    return mpack_writer_buffer_used(writer->data_writer);
+    uint8_t bson_header[5] = {5, 0, 0, 0, 0};
+    memcpy(data, bson_header, sizeof(bson_header));
+    writer->data_writer = bson_new_from_buffer(&data, &size, kb_bson_realloc, NULL);
+    if (writer->data_writer == NULL)
+    {
+        log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to create BSON writer\n");
+        return;
+    }
+
+    writer->logger = logger;
+    writer->buffer = data;
+}
+
+bson_t *message_writer_get_document(kb_message_writer_t *writer)
+{
+    assert(writer != NULL);
+
+    return writer->data_writer;
+}
+
+size_t message_writer_size(kb_message_writer_t *writer)
+{
+    return writer->data_writer->len;
 }
 
 int message_send(kb_message_writer_t *writer)
@@ -42,58 +41,17 @@ int message_send(kb_message_writer_t *writer)
         return 1;
     }
 
-    if (mpack_writer_error(writer->data_writer) != mpack_ok)
-    {
-        log4c_category_log(writer->logger, LOG4C_PRIORITY_ERROR, "Error writing message: %s\n", mpack_error_to_string(mpack_writer_error(writer->data_writer)));
-        return 1;
-    }
-
     // Keep writer because we want to free self memory
-    mpack_writer_t *data_writer = writer->data_writer;
     int result = writer->send(writer);
 
-    mpack_writer_destroy(data_writer);
-    free(data_writer);
+    bson_destroy(writer->data_writer);
 
     return result;
 }
 
 void message_cancel(kb_message_writer_t *writer)
 {
-    mpack_writer_t *data_writer = writer->data_writer;
     writer->cancel(writer);
 
-    mpack_writer_destroy(data_writer);
-    free(data_writer);
+    bson_destroy(writer->data_writer);
 }
-
-WRITER_FUNC_1(write_i8, int8_t);
-WRITER_FUNC_1(write_i16, int16_t);
-WRITER_FUNC_1(write_i32, int32_t);
-WRITER_FUNC_1(write_i64, int64_t);
-WRITER_FUNC_1(write_int, int64_t);
-WRITER_FUNC_1(write_u8, uint8_t);
-WRITER_FUNC_1(write_u16, uint16_t);
-WRITER_FUNC_1(write_u32, uint32_t);
-WRITER_FUNC_1(write_u64, uint64_t);
-WRITER_FUNC_1(write_uint, uint64_t);
-WRITER_FUNC_1(write_float, float);
-WRITER_FUNC_1(write_double, double);
-WRITER_FUNC_1(write_bool, bool);
-WRITER_FUNC_0(write_nil);
-WRITER_FUNC_2(write_str, const char*, uint32_t);
-WRITER_FUNC_2(write_utf8, const char*, uint32_t);
-WRITER_FUNC_1(write_cstr, const char*);
-WRITER_FUNC_1(write_cstr_or_nil, const char*);
-WRITER_FUNC_1(write_utf8_cstr, const char*);
-WRITER_FUNC_2(write_bin, const char*, uint32_t);
-
-WRITER_FUNC_1(start_map, uint32_t);
-WRITER_FUNC_0(finish_map);
-WRITER_FUNC_0(build_map);
-WRITER_FUNC_0(complete_map);
-
-WRITER_FUNC_1(start_array, uint32_t);
-WRITER_FUNC_0(finish_array);
-WRITER_FUNC_0(build_array);
-WRITER_FUNC_0(complete_array);

@@ -5,7 +5,6 @@
 #include <fcntl.h>
 #include <unistd.h>
 
-#include <mpack-writer.h>
 #include <utlist.h>
 
 #include "message_writer_uds.h"
@@ -88,8 +87,8 @@ int transport_uds_message_send(kb_transport_t *transport, kb_message_writer_t *w
     kb_transport_uds_t *self = (kb_transport_uds_t *)transport;
     kb_message_writer_uds_t *writer_uds = (kb_message_writer_uds_t *)writer;
 
-    size_t message_size = writer_message_size(writer);
-    char *data = writer->data_writer->buffer;
+    size_t message_size = message_writer_size(writer);
+    char *data = writer->buffer;
 
     // Shrink message to fre some extra memory
     data = realloc(data, message_size);

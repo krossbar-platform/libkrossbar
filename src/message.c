@@ -2,17 +2,25 @@
 
 #include <assert.h>
 #include <stdbool.h>
-#include <mpack.h>
 
-void message_init(kb_message_t *message, void *data, size_t size)
+#include <bson.h>
+
+typedef bson_reader_t kb_data_reader_t;
+typedef bson_t kb_data_document_t;
+
+void message_init(kb_message_t *message, uint8_t *data, size_t size)
 {
     assert(message != NULL);
     assert(data != NULL);
     assert(size > 0);
 
-    message->data_reader = malloc(sizeof(mpack_reader_t));
-    mpack_reader_init_data(message->data_reader, data, size);
-    message->destroy = NULL;
+    message->document = bson_new();
+    if (message->document == NULL)
+    {
+        return;
+    }
+
+    bson_init_static(message->document, data, size);
 }
 
 void message_destroy(kb_message_t *message)
@@ -22,25 +30,17 @@ void message_destroy(kb_message_t *message)
         return;
     }
 
-    mpack_reader_destroy(message->data_reader);
-    free(message->data_reader);
+    bson_destroy(message->document);
 
     if (message->destroy != NULL) {
         message->destroy(message);
     }
 }
 
-kb_message_tag_t message_read_tag(kb_message_t *message)
+bson_t *message_get_document(kb_message_t *message)
 {
-    return mpack_read_tag(message->data_reader);
-}
+    assert(message != NULL);
+    assert(message->document != NULL);
 
-kb_message_tag_t message_peek_tag(kb_message_t *message)
-{
-    return mpack_peek_tag(message->data_reader);
-}
-
-const char *message_read_bytes(kb_message_t *message, size_t count)
-{
-    return mpack_read_bytes_inplace(message->data_reader, count);
+    return message->document;
 }

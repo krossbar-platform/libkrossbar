@@ -1,7 +1,5 @@
 #include "transport_mock.h"
 
-#include <mpack.h>
-
 MessageWriterMock::MessageWriterMock(TransportMock *transport, log4c_category_t *logger) : m_transport(transport)
 {
     m_data.fill(0);
