@@ -1,7 +1,6 @@
 #include <deque>
 
 #include <gtest/gtest.h>
-#include <mpack.h>
 
 #include "mocks/transport_mock.h"
 

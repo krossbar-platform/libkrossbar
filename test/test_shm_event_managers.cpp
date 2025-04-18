@@ -26,7 +26,7 @@ TEST(EventManagers, TestShmemEventManager)
         std::this_thread::sleep_for(std::chrono::milliseconds(10));
 
         auto message_writer = transport_message_init(transport);
-        message_write_bool(message_writer, true);
+        ASSERT_TRUE(bson_append_bool(message_writer_get_document(message_writer), "test_bool", -1, true));
         ASSERT_EQ(message_send(message_writer), 0);
     };
 

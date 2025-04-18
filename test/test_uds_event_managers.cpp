@@ -48,7 +48,7 @@ TEST(EventManagers, TestUDSEventManager)
         auto transport_writer = transport_uds_init("test_writer", sockets[0], MESSAGE_SIZE, 10, &ring, logger);
 
         auto message_writer = transport_message_init(transport_writer);
-        message_write_bool(message_writer, true);
+        ASSERT_TRUE(bson_append_bool(message_writer_get_document(message_writer), "test_bool", -1, true));
         ASSERT_EQ(message_send(message_writer), 0);
 
         struct io_uring_cqe *cqe;
