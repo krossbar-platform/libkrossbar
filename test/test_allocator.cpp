@@ -266,10 +266,6 @@ TEST_F(AllocatorTest, TestCoalescing)
     auto afterSecondCoalesce = getAllBlocks(allocator);
     ASSERT_LE(afterSecondCoalesce.size(), afterFirstCoalesce.size());
 
-    // Check if we have a single free block (full coalescing)
-    bool hasSingleFreeBlock = (afterSecondCoalesce.size() == 1 &&
-                               afterSecondCoalesce[0].type == KB_BLOCK_TAG_FREE);
-
     // We might not have a single block if there was significant fragmentation
     // but we should at least have fewer blocks than before
     ASSERT_LT(afterSecondCoalesce.size(), beforeCount);

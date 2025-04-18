@@ -78,7 +78,6 @@ TEST(EventManagers, TestUDSEventManager)
     ASSERT_NE(set_nonblocking(sockets[1]), -1);
 
     auto transport_reader = transport_uds_init("test_reader", sockets[1], MESSAGE_SIZE, 10, &ring, logger);
-    auto reader_event_manager = (kb_event_manager_uds_t *)transport_reader->event_manager;
 
     auto message = transport_message_receive(transport_reader);
 
@@ -101,7 +100,6 @@ TEST(EventManagers, TestUDSEventManager)
     }
     ASSERT_EQ(cqe->res, 0);
 
-    auto event_manager = (kb_event_manager_t *)io_uring_cqe_get_data(cqe);
     auto received_message = event_manager_uds_handle_event(cqe);
 
     ASSERT_NE(received_message, nullptr);

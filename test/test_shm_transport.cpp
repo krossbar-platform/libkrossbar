@@ -398,7 +398,6 @@ TEST(Transport, TestShmemMessageCancel)
     ASSERT_EQ(arena->header->size, ARENA_SIZE);
 
     auto message_writer = transport_message_init(transport_writer);
-    auto shm_writer = (kb_message_writer_shm_t *)message_writer;
     message_cancel(message_writer);
 
     ASSERT_EQ(arena->header->num_messages, 0);
