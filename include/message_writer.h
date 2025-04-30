@@ -7,6 +7,7 @@
 #include <log4c/category.h>
 #include <bson.h>
 
+#include "document_writer.h"
 #include "error.h"
 
 #ifdef __cplusplus
@@ -15,7 +16,7 @@ extern "C" {
 
 struct kb_message_writer_s
 {
-    bson_t *data_writer;
+    kb_document_writer_t *document_writer;
     uint8_t *buffer;
     log4c_category_t *logger;
     int (*send)(struct kb_message_writer_s *writer);
@@ -35,7 +36,7 @@ void message_writer_init(kb_message_writer_t *writer, uint8_t *data, size_t size
  * @param writer The message writer
  * @return A pointer to the document in the message writer
  */
-bson_t *message_writer_get_document(kb_message_writer_t *writer);
+kb_document_writer_t *message_writer_get_document(kb_message_writer_t *writer);
 
 /**
  * @brief Gets the current size of the written message
