@@ -20,6 +20,7 @@ if(NOT CMAKE_USE_PTHREADS_INIT)
 endif()
 
 set(SOURCES
+    src/array_writer.c
     src/document_writer.c
     src/message_writer.c
     src/message.c

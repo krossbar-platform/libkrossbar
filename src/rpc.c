@@ -77,7 +77,7 @@ kb_message_writer_t *rpc_wrap_transport_message(kb_rpc_t *rpc, kb_message_writer
     message->callback = callback;
     message->context = context;
 
-    message->base.data_writer = writer->data_writer;
+    message->base.document_writer = writer->document_writer;
     message->base.logger = writer->logger;
     message->base.send = rpc_message_send;
     message->base.cancel = rpc_message_cancel;
@@ -221,9 +221,9 @@ void rpc_write_message_header(kb_message_writer_t *message, uint64_t id, kb_mess
 {
     assert(message != NULL);
 
-    bson_t *json = message_writer_get_document(message);
-    bson_append_int64(json, ID_KEY, -1, id);
-    bson_append_int32(json, TYPE_KEY, -1, type);
+    kb_document_writer_t *document = message_writer_get_document(message);
+    doc_writer_append_int64(document, ID_KEY, id);
+    doc_writer_append_int32(document, TYPE_KEY, type);
 }
 
 void rpc_destroy(kb_rpc_t *rpc)

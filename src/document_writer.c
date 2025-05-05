@@ -4,18 +4,14 @@
 
 #include <bson.h>
 
-struct kb_document_writer_s
-{
-    bson_t bson;
-    log4c_category_t *logger;
-};
+#include "writers_private.h"
 
 static void *kb_bson_realloc(void *mem, size_t num_bytes, void *ctx)
 {
     return NULL;
 }
 
-kb_document_writer_t *doc_writer_create(uint8_t *data, size_t size, log4c_category_t *logger)
+kb_document_writer_t *doc_writer_from_buffer(uint8_t *data, size_t size, log4c_category_t *logger)
 {
     kb_document_writer_t *writer = malloc(sizeof(kb_document_writer_t));
     if (writer == NULL)
@@ -24,103 +20,107 @@ kb_document_writer_t *doc_writer_create(uint8_t *data, size_t size, log4c_catego
         return NULL;
     }
     writer->logger = logger;
+    writer->parent_document = NULL;
+    writer->parent_array = NULL;
 
     uint8_t bson_header[5] = {5, 0, 0, 0, 0};
     memcpy(data, bson_header, sizeof(bson_header));
-    writer->document = (kb_document_t*)bson_new_from_buffer(&data, &size, kb_bson_realloc, NULL);
-    if (writer->document == NULL)
+    writer->bson = bson_new_from_buffer(&data, &size, kb_bson_realloc, NULL);
+    if (writer->bson == NULL)
     {
         log4c_category_log(logger, LOG4C_PRIORITY_ERROR, "Failed to create BSON writer\n");
         return NULL;
     }
 }
 
-void doc_writer_destroy(kb_document_writer_t *writer)
+bool doc_writer_destroy(kb_document_writer_t *writer)
 {
     assert(writer != NULL);
+    assert(writer->parent_document == NULL && writer->parent_array == NULL);
 
-    bson_destroy((bson_t*)writer->document);
+    bson_destroy(writer->bson);
+    return true;
 }
 
 size_t doc_writer_data_size(kb_document_writer_t *writer)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
 
-    return ((bson_t*)writer->document)->len;
+    return (writer->bson)->len;
 }
 
 bool doc_writer_append_binary(kb_document_writer_t *writer, const char *key,
     const uint8_t *binary, uint32_t length)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
     assert(binary != NULL);
 
-    return bson_append_binary((bson_t*)writer->document, key, -1, BSON_SUBTYPE_BINARY, binary, length);
+    return bson_append_binary(writer->bson, key, -1, BSON_SUBTYPE_BINARY, binary, length);
 }
 
 bool doc_writer_append_utf8(kb_document_writer_t *writer, const char *key,
     const char *value, uint32_t length)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
     assert(value != NULL);
 
-    return bson_append_utf8((bson_t*)writer->document, key, -1, value, length);
+    return bson_append_utf8(writer->bson, key, -1, value, length);
 }
 
 bool doc_writer_append_null(kb_document_writer_t *writer, const char *key)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
 
-    return bson_append_null((bson_t*)writer->document, key, -1);
+    return bson_append_null(writer->bson, key, -1);
 }
 
 bool doc_writer_append_bool(kb_document_writer_t *writer, const char *key, bool value)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
 
-    return bson_append_bool((bson_t*)writer->document, key, -1, value);
+    return bson_append_bool(writer->bson, key, -1, value);
 }
 
 bool doc_writer_append_double(kb_document_writer_t *writer, const char *key, double value)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
 
-    return bson_append_double((bson_t*)writer->document, key, -1, value);
+    return bson_append_double(writer->bson, key, -1, value);
 }
 
 bool doc_writer_append_int32(kb_document_writer_t *writer, const char *key, int32_t value)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
 
-    return bson_append_int32((bson_t*)writer->document, key, -1, value);
+    return bson_append_int32(writer->bson, key, -1, value);
 }
 
 bool doc_writer_append_int64(kb_document_writer_t *writer, const char *key, int64_t value)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
 
-    return bson_append_int64((bson_t*)writer->document, key, -1, value);
+    return bson_append_int64(writer->bson, key, -1, value);
 }
 
-kb_document_writer_t *doc_writer_append_document(kb_document_writer_t *writer, const char *key)
+kb_document_writer_t *doc_writer_document_begin(kb_document_writer_t *writer, const char *key)
 {
     assert(writer != NULL);
-    assert(writer->document != NULL);
+    assert(writer->bson != NULL);
     assert(key != NULL);
 
     kb_document_writer_t *sub_writer = malloc(sizeof(kb_document_writer_t));
@@ -131,17 +131,57 @@ kb_document_writer_t *doc_writer_append_document(kb_document_writer_t *writer, c
     }
 
     sub_writer->logger = writer->logger;
-    sub_writer->document = (kb_document_t*)bson_new_from_buffer(&writer->document, &writer->document, kb_bson_realloc, NULL);
-    if (sub_writer->document == NULL)
+    sub_writer->bson = bson_new();
+    sub_writer->parent_document = writer->bson;
+    if (sub_writer->bson == NULL)
     {
         log4c_category_log(writer->logger, LOG4C_PRIORITY_ERROR, "Failed to create BSON writer\n");
         free(sub_writer);
         return NULL;
     }
 
-    bson_append_document_begin((bson_t*)writer->document, key, -1, (bson_t*)sub_writer->document);
+    if (!bson_append_document_begin(sub_writer->parent_document, key, -1, sub_writer->bson))
+    {
+        log4c_category_log(writer->logger, LOG4C_PRIORITY_ERROR, "Failed to init internal document\n");
+        free(sub_writer);
+        return NULL;
+    }
 
     return sub_writer;
 }
-bool dw_append_document_end(kb_document_writer_t *writer, kb_document_writer_t *);
+bool doc_writer_document_end(kb_document_writer_t *writer)
+{
+    assert(writer != NULL);
+    assert(writer->bson != NULL);
 
+    if (!writer->parent_document)
+    {
+        log4c_category_log(writer->logger, LOG4C_PRIORITY_ERROR, "Can't end root document\n");
+        return false;
+    }
+
+    if (!bson_append_document_end(writer->parent_document, writer->bson))
+    {
+        log4c_category_log(writer->logger, LOG4C_PRIORITY_ERROR, "Failed to append document end\n");
+        return false;
+    }
+
+    return true;
+}
+
+kb_array_writer_t *doc_writer_array_begin(kb_document_writer_t *writer, const char *key)
+{
+    assert(writer != NULL);
+    assert(writer->bson != NULL);
+    assert(key != NULL);
+
+    return arr_writer_create(writer, key, writer->logger);
+}
+
+bool doc_writer_array_end(kb_array_writer_t *writer)
+{
+    assert(writer != NULL);
+    assert(writer->builder != NULL);
+
+    return arr_writer_finish(writer);
+}

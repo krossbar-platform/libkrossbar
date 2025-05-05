@@ -98,7 +98,8 @@
         "log4c.h": "c",
         "utlist.h": "c",
         "message.h": "c",
-        "bson.h": "c"
+        "bson.h": "c",
+        "writers_private.h": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",
