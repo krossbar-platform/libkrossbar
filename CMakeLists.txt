@@ -21,6 +21,7 @@ endif()
 
 set(SOURCES
     src/array_writer.c
+    src/document.c
     src/document_writer.c
     src/message_writer.c
     src/message.c

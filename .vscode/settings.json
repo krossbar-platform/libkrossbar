@@ -99,7 +99,8 @@
         "utlist.h": "c",
         "message.h": "c",
         "bson.h": "c",
-        "writers_private.h": "c"
+        "writers_private.h": "c",
+        "value.h": "c"
     },
     "cmake.configureArgs": [
         "-DENABLE_TESTING=ON",

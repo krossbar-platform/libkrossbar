@@ -19,7 +19,7 @@ void message_writer_init(kb_message_writer_t *writer, uint8_t *data, size_t size
     writer->buffer = data;
 }
 
-kb_document_writer_t *message_writer_get_document(kb_message_writer_t *writer)
+kb_document_writer_t *message_writer_root(kb_message_writer_t *writer)
 {
     assert(writer != NULL);
 

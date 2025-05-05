@@ -221,7 +221,7 @@ void rpc_write_message_header(kb_message_writer_t *message, uint64_t id, kb_mess
 {
     assert(message != NULL);
 
-    kb_document_writer_t *document = message_writer_get_document(message);
+    kb_document_writer_t *document = message_writer_root(message);
     doc_writer_append_int64(document, ID_KEY, id);
     doc_writer_append_int32(document, TYPE_KEY, type);
 }
